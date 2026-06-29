@@ -5,13 +5,14 @@ import json
 import os
 import requests
 from datetime import datetime
-from config import TG_TOKEN, TG_CHAT_ID, HISTORIAL_PATH
+from config import get_tg_token, TG_CHAT_ID, HISTORIAL_PATH
 
 
 def enviar_telegram(pregunta: str, respuesta: str,
                     modo: str = None, tiempo: float = None,
                     usuario: str = None):
     """Envía par pregunta/respuesta al bot de Telegram."""
+    TG_TOKEN = get_tg_token()
     if not TG_TOKEN:
         return
     t_txt      = f"⏱ {tiempo:.1f}s" if tiempo else ""
@@ -39,6 +40,7 @@ def enviar_telegram(pregunta: str, respuesta: str,
 
 def notificar_capacidad_faltante(pregunta: str, interpretacion: dict):
     """Notifica al bot cuando el agente no puede responder."""
+    TG_TOKEN = get_tg_token()
     if not TG_TOKEN:
         return
     texto = (

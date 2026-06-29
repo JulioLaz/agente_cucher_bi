@@ -2,7 +2,7 @@
 llm.py — Llamadas a NVIDIA NIM con fallback automático entre modelos.
 """
 import requests
-from config import NVIDIA_API_KEY, NVIDIA_URL, MODELOS, TIMEOUT_NVIDIA
+from config import get_nvidia_key, NVIDIA_URL, MODELOS, TIMEOUT_NVIDIA
 
 
 def llamar_nvidia(messages: list[dict],
@@ -12,8 +12,9 @@ def llamar_nvidia(messages: list[dict],
     Llama a NVIDIA NIM con fallback automático.
     Retorna el texto de la respuesta o mensaje de error.
     """
+    NVIDIA_API_KEY = get_nvidia_key()
     if not NVIDIA_API_KEY:
-        return "❌ key_nvidia no encontrada en .env"
+        return "❌ key_nvidia no encontrada en secrets"
 
     headers = {
         "Authorization": f"Bearer {NVIDIA_API_KEY}",
