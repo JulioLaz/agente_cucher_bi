@@ -63,8 +63,9 @@ def enriquecer(pregunta: str) -> Contexto:
     ctx.texto_libre = pregunta
 
     # ── 1. CATEGORÍA ─────────────────────────────────────────
+    import re as _re2
     for sinonimo, cat_key in SINONIMO_A_CATEGORIA.items():
-        if sinonimo in p:
+        if _re2.search(r'\b' + _re2.escape(sinonimo) + r'\b', p):
             ctx.categoria_key = cat_key
             cat = CATEGORIAS[cat_key]
             ctx.subfamilia = cat["subfamilia"]

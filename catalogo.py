@@ -172,6 +172,22 @@ CATEGORIAS = {
         "marcas":     ["sedal", "head", "pantene", "dove", "elseve"],
         "medidas": {}
     },
+    "alimentos": {
+        "subfamilia": None,  # categoría general — filtrar por familia
+        "familia":    "Alimentos",
+        "sinonimos":  ["alimento", "alimentos", "comestible", "comestibles",
+                       "viveres", "víveres", "secos", "almacen", "almacén",
+                       "groceries"],
+        "marcas":     [],
+        "medidas":    {}
+    },
+    "bebidas": {
+        "subfamilia": None,
+        "familia":    "Bebidas",
+        "sinonimos":  ["bebida", "bebidas", "liquido", "líquido", "liquidos"],
+        "marcas":     [],
+        "medidas":    {}
+    },
     "arroz": {
         "subfamilia": "Arroz",
         "familia":    "Alimentos",

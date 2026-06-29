@@ -133,6 +133,9 @@ def tpl_top_ventas(ctx: Contexto) -> Optional[pd.DataFrame]:
 
     if ctx.subfamilia:
         filtros.append(f"LOWER(subfamilia) LIKE LOWER('%{ctx.subfamilia}%')")
+    elif ctx.familia:
+        # Categoría general sin subfamilia específica
+        filtros.append(f"LOWER(familia) LIKE LOWER('%{ctx.familia}%')")
     elif ctx.marcas:
         f_marcas = " OR ".join(f"LOWER(descripcion) LIKE '%{m}%'" for m in ctx.marcas)
         filtros.append(f"({f_marcas})")
