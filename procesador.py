@@ -214,6 +214,7 @@ def procesar(pregunta: str, historial: list) -> tuple[str, Optional[pd.DataFrame
 
     print(f"   [proc] Llamando LLM para SQL...")
     raw = llamar_nvidia(msgs, max_tokens=MAX_TOKENS_SQL)
+    print(f"   [proc] RAW LLM respuesta: {repr(raw[:300])}")
 
     sql, df, error, modo = _extraer_y_ejecutar(raw)
     print(f"   [proc] SQL: {sql[:120] if sql else 'vacío'}")
