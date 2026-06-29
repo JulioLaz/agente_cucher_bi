@@ -12,16 +12,38 @@ Cambios:
 '''
 import sys
 import os
-# Asegurar que el directorio del proyecto esté en el path
+import json
+
+# Asegurar path del proyecto
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import time
-import json
+# ── INYECTAR SECRETS COMO ENV VARS ANTES DE CUALQUIER IMPORT LOCAL ──
+# Esto evita que streamlit confunda módulos locales con keys de secrets
 import streamlit as st
+
+def _inject_secrets():
+    """Copia st.secrets a os.environ para que los módulos locales los lean."""
+    keys = ["TOKEN_MATHERDUCK", "key_nvidia", "token_bot_telegram"]
+    for k in keys:
+        try:
+            val = st.secrets[k]
+            os.environ[k] = str(val)
+        except Exception:
+            pass
+    # Usuarios
+    try:
+        usuarios = dict(st.secrets["usuarios"])
+        os.environ["USUARIOS_JSON"] = json.dumps(usuarios)
+    except Exception:
+        pass
+
+_inject_secrets()
+
+import time
 import plotly.graph_objects as go
 from datetime import date
 
-# Módulos del proyecto
+# Módulos del proyecto — DESPUÉS de inyectar secrets
 from config import HISTORIAL_PATH, COLORES_SUC
 from procesador import procesar
 from interprete import interpretar
