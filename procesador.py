@@ -256,20 +256,35 @@ def procesar(pregunta: str, historial: list) -> tuple[str, Optional[pd.DataFrame
 
 def _extraer_y_ejecutar(raw: str) -> tuple[str, pd.DataFrame, str, str]:
     """Extrae SQL del raw del LLM y lo ejecuta."""
-    # Intentar parsear JSON
     sql = ""
+
+    # Limpiar markdown
+    clean = raw.strip()
+    for tag in ["```json", "```sql", "```"]:
+        clean = clean.replace(tag, "")
+    clean = clean.strip()
+
+    # Intentar parsear JSON
     try:
-        clean  = raw.strip().replace("```json","").replace("```","").strip()
         parsed = json.loads(clean)
-        sql    = parsed.get("sql", "")
+        sql = parsed.get("sql", "")
+        # El LLM a veces devuelve {"sql": "SELECT..."} con sql como string literal
+        if sql in ('"', "'", "sql", "SQL", ""):
+            sql = ""
     except Exception:
-        # Buscar SQL directamente en el texto
-        match = re.search(r'(WITH\s+|SELECT\s+).*?(?=\}|$|```)',
-                          raw, re.DOTALL | re.IGNORECASE)
+        pass
+
+    # Si no se pudo parsear JSON, buscar SQL directamente
+    if not sql:
+        match = re.search(r'(WITH\s+|SELECT\s+).+',
+                          clean, re.DOTALL | re.IGNORECASE)
         sql = match.group(0).strip() if match else ""
 
-    if not sql:
-        return "", pd.DataFrame(), "No se pudo extraer SQL de la respuesta", "error_sql"
+    # Limpiar el SQL extraído
+    sql = sql.strip().strip('"').strip("'").strip()
+
+    if not sql or len(sql) < 10:
+        return "", pd.DataFrame(), "No se pudo extraer SQL válido de la respuesta", "error_sql"
 
     sql = limpiar_sql(sql)
     df, error = ejecutar_sql(sql)
