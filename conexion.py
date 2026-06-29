@@ -13,8 +13,3 @@ def get_con() -> duckdb.DuckDBPyConnection:
     if not token:
         raise ValueError("❌ TOKEN_MATHERDUCK no encontrado en secrets")
     return duckdb.connect(f"md:?motherduck_token={token}")
-
-
-def get_con_local() -> duckdb.DuckDBPyConnection:
-    """Conexión local DuckDB (sin MotherDuck) — para tests."""
-    return duckdb.connect()

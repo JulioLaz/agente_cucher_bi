@@ -5,19 +5,16 @@ import requests
 from config import get_nvidia_key, NVIDIA_URL, MODELOS, TIMEOUT_NVIDIA
 
 
-def llamar_nvidia(messages: list[dict],
+def llamar_nvidia(messages: list,
                   max_tokens: int = 1024,
                   temperatura: float = 0.3) -> str:
-    """
-    Llama a NVIDIA NIM con fallback automático.
-    Retorna el texto de la respuesta o mensaje de error.
-    """
-    NVIDIA_API_KEY = get_nvidia_key()
-    if not NVIDIA_API_KEY:
+    """Llama a NVIDIA NIM con fallback automático."""
+    api_key = get_nvidia_key()
+    if not api_key:
         return "❌ key_nvidia no encontrada en secrets"
 
     headers = {
-        "Authorization": f"Bearer {NVIDIA_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type":  "application/json"
     }
 

@@ -12,8 +12,8 @@ def enviar_telegram(pregunta: str, respuesta: str,
                     modo: str = None, tiempo: float = None,
                     usuario: str = None):
     """Envía par pregunta/respuesta al bot de Telegram."""
-    TG_TOKEN = get_tg_token()
-    if not TG_TOKEN:
+    tg_token = get_tg_token()
+    if not tg_token:
         return
     t_txt      = f"⏱ {tiempo:.1f}s" if tiempo else ""
     modo_txt   = f"🔧 `{modo}`\n" if modo else ""
@@ -30,7 +30,7 @@ def enviar_telegram(pregunta: str, respuesta: str,
     )
     try:
         requests.post(
-            f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+            f"https://api.telegram.org/bot{tg_token}/sendMessage",
             json={"chat_id": TG_CHAT_ID, "text": texto, "parse_mode": "Markdown"},
             timeout=10
         )
@@ -40,8 +40,8 @@ def enviar_telegram(pregunta: str, respuesta: str,
 
 def notificar_capacidad_faltante(pregunta: str, interpretacion: dict):
     """Notifica al bot cuando el agente no puede responder."""
-    TG_TOKEN = get_tg_token()
-    if not TG_TOKEN:
+    tg_token = get_tg_token()
+    if not tg_token:
         return
     texto = (
         f"🤖 *CAPACIDAD FALTANTE — Cucher Agente*\n"
@@ -53,11 +53,10 @@ def notificar_capacidad_faltante(pregunta: str, interpretacion: dict):
     )
     try:
         requests.post(
-            f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+            f"https://api.telegram.org/bot{tg_token}/sendMessage",
             json={"chat_id": TG_CHAT_ID, "text": texto, "parse_mode": "Markdown"},
             timeout=10
         )
-        print("   [telegram] Capacidad faltante notificada")
     except Exception as e:
         print(f"   [telegram] Error: {e}")
 
@@ -80,5 +79,8 @@ def guardar_historial(pregunta: str, respuesta: str,
         except Exception:
             pass
     historial.append(registro)
-    with open(HISTORIAL_PATH, "w", encoding="utf-8") as f:
-        json.dump(historial, f, ensure_ascii=False, indent=2)
+    try:
+        with open(HISTORIAL_PATH, "w", encoding="utf-8") as f:
+            json.dump(historial, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass  # En Streamlit Cloud el filesystem es read-only

@@ -131,20 +131,7 @@ div[data-testid="stPlotlyChart"]{border-radius:10px;overflow:hidden;}
 
 
 # ─── AUTENTICACIÓN — PRIMERO QUE TODO ────────────────────────
-def get_usuarios() -> dict:
-    """Lee usuarios desde st.secrets (Streamlit Cloud) o fallback local .env"""
-    try:
-        # Streamlit Cloud: secrets.toml → [usuarios] cristina = "pass"
-        return dict(st.secrets["usuarios"])
-    except Exception:
-        # Fallback local para desarrollo
-        import os
-        usuarios = {}
-        for u in ["cristina","horacio","julio"]:
-            pwd = os.getenv(f"USER_{u.upper()}", "vamos_argentina")
-            usuarios[u] = pwd
-        return usuarios
-
+from config import get_usuarios
 USUARIOS_VALIDOS = get_usuarios()
 
 def mostrar_login():
