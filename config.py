@@ -12,9 +12,10 @@ def _secret(key: str, default: str = None) -> str:
     """Lee desde st.secrets primero, luego os.getenv."""
     try:
         import streamlit as st
-        val = st.secrets.get(key)
-        if val:
-            return val
+        # st.secrets lanza KeyError si no existe — usar try/except
+        return str(st.secrets[key])
+    except (KeyError, FileNotFoundError):
+        pass
     except Exception:
         pass
     return os.getenv(key, default)
