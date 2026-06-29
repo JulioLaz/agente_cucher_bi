@@ -267,6 +267,62 @@ def tpl_comparar_precio_venta_compra(ctx: Contexto) -> pd.DataFrame | None:
         return None
     return df if not df.empty else None
 
+
+def tpl_criticos_con_ventas(ctx: Contexto, top_n: int = 20) -> pd.DataFrame | None:
+    """
+    Artículos críticos de stock cruzados con sus ventas mensuales.
+    Para consultas como: "clasificar productos críticos según venta mensual"
+    """
+    from datetime import date
+    mes_desde = date.today().replace(day=1).isoformat()
+
+    filtros = ["r.dias_cobertura >= 0", "r.dias_cobertura <= 14"]
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(r.subfamilia) LIKE LOWER('%{ctx.subfamilia}%')")
+    if ctx.marcas:
+        f_m = " OR ".join(f"LOWER(r.descripcion) LIKE '%{m}%'" for m in ctx.marcas)
+        filtros.append(f"({f_m})")
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        WITH ventas_mes AS (
+            SELECT idartalfa,
+                   ROUND(SUM(precio_total),2)   AS ventas_mes,
+                   ROUND(SUM(cantidad_total),0) AS unidades_mes
+            FROM {T_TICKETS}
+            WHERE CAST(fecha_comprobante AS DATE) >= '{mes_desde}'
+            GROUP BY idartalfa
+        )
+        SELECT
+            r.descripcion,
+            r.familia,
+            r.subfamilia,
+            r.proveedor,
+            r.dias_cobertura,
+            r.nivel_riesgo,
+            r.STK_TOTAL      AS stock_total,
+            r.stk_hiper, r.stk_corrientes, r.stk_sabin,
+            r.clase_abc,
+            COALESCE(v.ventas_mes, 0)   AS ventas_mes,
+            COALESCE(v.unidades_mes, 0) AS unidades_mes,
+            CASE
+                WHEN r.dias_cobertura <= 3  THEN '🔴 CRÍTICO'
+                WHEN r.dias_cobertura <= 7  THEN '🟠 URGENTE'
+                WHEN r.dias_cobertura <= 14 THEN '🟡 BAJO'
+                ELSE '🟢 OK'
+            END AS nivel
+        FROM {T_ALERT} r
+        LEFT JOIN ventas_mes v ON CAST(r.idarticuloalfa AS BIGINT) = v.idartalfa
+        {where}
+        ORDER BY r.dias_cobertura ASC, ventas_mes DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template criticos_ventas] Error: {err}")
+        return None
+    return df if not df.empty else None
+
 # ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
@@ -292,6 +348,17 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     print(f"   [template] cat={ctx.categoria_key!r} marcas={ctx.marcas} "
           f"precio={ctx.pide_precio} comparar={pide_comparar} "
           f"ranking={ctx.pide_ranking} stock={ctx.pide_stock}")
+
+    # 0. CRÍTICOS CON VENTAS — cuando pide clasificar o alertas
+    pide_criticos = any(x in p_lower for x in [
+        "clasificar", "clasificacion", "clasificación critico",
+        "productos criticos", "productos críticos", "criticos segun",
+        "críticos según venta", "necesitan stock", "bajo stock"])
+    if pide_criticos or (ctx.pide_alerta and ctx.pide_stock):
+        print(f"   [router] → tpl_criticos_con_ventas")
+        df = tpl_criticos_con_ventas(ctx)
+        if df is not None:
+            return df
 
     # 1. COMPARAR precio venta vs compra — PRIMERA PRIORIDAD
     if pide_comparar and ctx.categoria_key:

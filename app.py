@@ -105,6 +105,15 @@ section[data-testid="stSidebar"] .stSelectbox>div>div{
   text-transform:uppercase;letter-spacing:0.06em;
   margin-bottom:6px;border-bottom:2px solid #d97706;padding-bottom:3px;}
 .panel-azul{background-color:#1a2744;border-radius:12px;padding:14px 12px;}
+/* Panel derecho fondo azul via selector de columna */
+[data-testid="column"]:last-child {
+    background-color: #1a2744 !important;
+    border-radius: 12px;
+    padding: 12px 10px;
+}
+[data-testid="column"]:last-child * {
+    color: #e2e8f0 !important;
+}
 
 /* Chat */
 [data-testid="stChatMessage"]{background:#ffffff !important;
@@ -223,6 +232,7 @@ KEYS_DEFAULT = {
     "ultimo_modo":             None,
     "interpretacion_pendiente":None,
     "pregunta_pendiente":      "",
+    "dfs_guardados":           {},
 }
 for k, v in KEYS_DEFAULT.items():
     if k not in st.session_state:
@@ -465,9 +475,15 @@ with col_chat:
                                     width="stretch",
                                     config={"displayModeBar": False})
 
+                    df_key = f"df_{len(st.session_state.messages)}"
+                    if df_r is not None and not df_r.empty:
+                        if "dfs_guardados" not in st.session_state:
+                            st.session_state["dfs_guardados"] = {}
+                        st.session_state["dfs_guardados"][df_key] = df_r
                     st.session_state.messages.append({
                         "role": "assistant", "content": respuesta,
                         "tiene_grafico": df_r is not None and not df_r.empty,
+                        "df_key": df_key if df_r is not None and not df_r.empty else None,
                         "pregunta": pregunta_pend
                     })
                     st.session_state.historial.append(
@@ -566,7 +582,7 @@ with col_chat:
 
 # ─── PANEL DERECHO ───────────────────────────────────────────
 with col_panel:
-    st.markdown('<div class="panel-azul">', unsafe_allow_html=True)
+    # Panel con fondo via CSS aplicado al contenedor nativo de Streamlit
 
     mes_label = date.today().strftime("%B %Y")
 
@@ -603,4 +619,4 @@ with col_panel:
                             width="stretch",
                             config={"displayModeBar":False})
 
-    st.markdown('</div>', unsafe_allow_html=True)
+
