@@ -165,7 +165,7 @@ section[data-testid="stSidebar"] { display: none !important; }
             password = st.text_input("🔑 Contraseña", type="password",
                                      placeholder="••••••••••••")
             submitted = st.form_submit_button("→ Ingresar",
-                                              use_container_width=True)
+                                              width='stretch')
             if submitted:
                 u = usuario.strip().lower()
                 if u in USUARIOS_VALIDOS and password == USUARIOS_VALIDOS[u]:
@@ -210,7 +210,7 @@ with st.sidebar:
     st.markdown(f"👤 **{usuario_actual}** · "
                 f"<span style='font-size:0.75rem;color:#94a3b8;cursor:pointer;' "
                 f"onclick=''>Salir</span>", unsafe_allow_html=True)
-    if st.button("🚪 Cerrar sesión", use_container_width=True, key="btn_logout"):
+    if st.button("🚪 Cerrar sesión", width='stretch', key="btn_logout"):
         st.session_state["autenticado"]    = False
         st.session_state["usuario_actual"] = ""
         st.rerun()
@@ -265,7 +265,7 @@ with st.sidebar:
 """)
 
     st.markdown("---")
-    if st.button("🗑️ Limpiar chat", use_container_width=True):
+    if st.button("🗑️ Limpiar chat", width='stretch'):
         for k, v in KEYS_DEFAULT.items():
             st.session_state[k] = v
         st.rerun()
@@ -278,7 +278,7 @@ with st.sidebar:
             data=json.dumps(_hist, ensure_ascii=False, indent=2),
             file_name=f"historial_{date.today()}.json",
             mime="application/json",
-            use_container_width=True
+            width='stretch'
         )
 
 
@@ -403,7 +403,7 @@ with col_chat:
 
             col_si, col_no = st.columns([1, 1])
             with col_si:
-                if st.button("✅ Sí, ejecutar", use_container_width=True,
+                if st.button("✅ Sí, ejecutar", width='stretch',
                              key="btn_confirmar"):
                     with st.chat_message("assistant"):
                         with st.spinner("🤖 Consultando datos..."):
@@ -436,7 +436,7 @@ with col_chat:
                                 st.plotly_chart(
                                     fig,
                                     key=f"chart_conf_{int(time.time()*1000)}",
-                                    use_container_width=True,
+                                    width='stretch',
                                     config={"displayModeBar": False})
 
                     st.session_state.messages.append({
@@ -457,7 +457,7 @@ with col_chat:
                                     usuario=st.session_state.get("usuario_actual",""))
 
             with col_no:
-                if st.button("✏️ Corregir pregunta", use_container_width=True,
+                if st.button("✏️ Corregir pregunta", width='stretch',
                              key="btn_corregir"):
                     st.session_state.interpretacion_pendiente = None
                     st.session_state.pregunta_pendiente = ""
@@ -511,7 +511,7 @@ with col_chat:
                         paper_bgcolor="rgba(0,0,0,0)",
                         font=dict(color="#1a1a2e",size=10))
                     st.plotly_chart(fig, key=f"hist_{i}",
-                                    use_container_width=True,
+                                    width='stretch',
                                     config={"displayModeBar":False})
             st.markdown(msg["content"])
 
@@ -552,7 +552,7 @@ with col_panel:
         fig = grafico_ventas_sucursal(df_suc)
         if fig:
             st.plotly_chart(fig, key="panel_suc",
-                            use_container_width=True,
+                            width='stretch',
                             config={"displayModeBar":False})
 
     # Utilidad diaria
@@ -563,7 +563,7 @@ with col_panel:
         fig = grafico_utilidad_diaria(df_util)
         if fig:
             st.plotly_chart(fig, key="panel_util",
-                            use_container_width=True,
+                            width='stretch',
                             config={"displayModeBar":False})
 
     # Utilidad mensual comparativa
@@ -574,7 +574,7 @@ with col_panel:
         fig = grafico_utilidad_mensual(df_mens)
         if fig:
             st.plotly_chart(fig, key="panel_mens",
-                            use_container_width=True,
+                            width='stretch',
                             config={"displayModeBar":False})
 
     st.markdown('</div>', unsafe_allow_html=True)
