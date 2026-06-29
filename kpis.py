@@ -4,6 +4,10 @@ Todas las queries están cacheadas con ttl=600 (10 min).
 """
 import streamlit as st
 import pandas as pd
+import functools
+
+# Cache simple sin Streamlit para compatibilidad
+_cache = {}
 from datetime import date, timedelta
 from conexion import get_con
 from config import T_TICKETS, T_ALERT
