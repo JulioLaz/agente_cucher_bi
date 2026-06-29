@@ -158,13 +158,15 @@ WHERE pv.rn = 1
 ORDER BY margen_real_pct ASC;
 """
 
-SYSTEM_SQL = f"""Sos un experto en DuckDB y SQL para retail. Generás SQL para MotherDuck.
-Hoy: {{hoy}}. Mes: {{mes}}.
+# SYSTEM_SQL usa {HOY} y {MES} como placeholders — reemplazados en runtime
+# NO es f-string para evitar conflicto con llaves del JSON de ejemplo
+SYSTEM_SQL = """Sos un experto en DuckDB y SQL para retail. Generás SQL para MotherDuck.
+Hoy: {HOY}. Mes: {MES}.
 
-{SCHEMA_SQL}
+""" + SCHEMA_SQL + """
 
-INSTRUCCIÓN: Devolvé SOLO este JSON sin markdown:
-{{"sql": "SELECT ..."}}
+INSTRUCCIÓN: Devolvé SOLO este JSON sin markdown (sin comillas extras):
+{"sql": "SELECT ..."}
 
 El SQL debe ser correcto para DuckDB, con LIMIT y sin filtros de fecha en ultimos_precios."""
 
@@ -206,7 +208,7 @@ def procesar(pregunta: str, historial: list) -> tuple[str, Optional[pd.DataFrame
         return analisis, df, "template"
 
     # ── PASO 3: LLM genera SQL ────────────────────────────────
-    system = SYSTEM_SQL.format(hoy=hoy, mes=mes)
+    system = SYSTEM_SQL.replace("{HOY}", str(hoy)).replace("{MES}", str(mes))
     msgs   = [{"role": "system", "content": system}]
     for h in historial[-6:]:
         msgs.append(h)
