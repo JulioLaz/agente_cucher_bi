@@ -62,7 +62,19 @@ def grafico_auto(df: pd.DataFrame, pregunta: str = "") -> go.Figure | None:
             return fig
 
         # ── 2. COMPARACIÓN POR SUCURSAL ──────────────────────
-        if "sucursal" in cols:
+        # Solo aplica si NO hay descripcion (sino es ranking de artículos, no de sucursales)
+        # o si hay pocas filas y muchas sucursales distintas (comparación real entre sucursales)
+        n_sucursales_distintas = df["sucursal"].nunique() if "sucursal" in cols else 0
+        es_comparacion_sucursal = (
+            "sucursal" in cols
+            and not col_desc
+        ) or (
+            "sucursal" in cols
+            and col_desc
+            and n_sucursales_distintas == len(df)  # 1 fila por sucursal, sin repetir artículo
+        )
+
+        if es_comparacion_sucursal:
             col_v = _buscar_col(cols, ["ventas", "total", "utilidad", "monto", "unidades"])
             if col_v:
                 col_val = col_map[col_v]
@@ -192,7 +204,7 @@ def grafico_ventas_sucursal(df: pd.DataFrame) -> go.Figure | None:
                       margin=dict(l=0,r=0,t=10,b=0),
                       plot_bgcolor="rgba(0,0,0,0)",
                       paper_bgcolor="rgba(0,0,0,0)",
-                      font=dict(color="#202b3a", size=10),
+                      font=dict(color="#21334b", size=10),
                       yaxis=dict(showgrid=False, showticklabels=False),
                       xaxis=dict(showgrid=False))
     return fig
@@ -220,11 +232,11 @@ def grafico_utilidad_diaria(df: pd.DataFrame) -> go.Figure | None:
                       margin=dict(l=0,r=0,t=10,b=0),
                       plot_bgcolor="rgba(0,0,0,0)",
                       paper_bgcolor="rgba(0,0,0,0)",
-                      font=dict(color="#202f44", size=9),
+                      font=dict(color="#1f3858", size=9),
                       yaxis=dict(showgrid=False, showticklabels=False),
                       xaxis=dict(showgrid=False,
                                  title=dict(text="día",
-                                            font=dict(color="#263344"))))
+                                            font=dict(color="#182536"))))
     return fig
 
 
@@ -243,7 +255,7 @@ def grafico_utilidad_mensual(df: pd.DataFrame) -> go.Figure | None:
             name=str(int(anio)),
             x=df_a["mes_nom"],
             y=df_a["utilidad_m"],
-            marker_color=COLORES_ANIO.get(int(anio), "#3f4b5c"),
+            marker_color=COLORES_ANIO.get(int(anio), "#4d617c"),
             text=[f"{v:.2f}M" for v in df_a["utilidad_m"]],
             textposition="outside",
             textfont=dict(size=7),
@@ -253,11 +265,11 @@ def grafico_utilidad_mensual(df: pd.DataFrame) -> go.Figure | None:
         margin=dict(l=0,r=0,t=10,b=0),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#1c2635", size=9),
+        font=dict(color="#0d0d0e", size=9),
         legend=dict(orientation="h", y=1.08, x=0,
-                    font=dict(size=9, color="#233041"),
+                    font=dict(size=9, color="#0d0d0e"),
                     bgcolor="rgba(0,0,0,0)"),
-        yaxis=dict(showgrid=True, gridcolor="#2e4a7a",
+        yaxis=dict(showgrid=True, gridcolor="#0d0d0e",
                    showticklabels=False, zeroline=False),
         xaxis=dict(showgrid=False),
     )
