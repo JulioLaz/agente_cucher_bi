@@ -646,3 +646,5 @@ with col_panel:
             st.plotly_chart(fig, key="panel_mens",
                             width="stretch",
                             config={"displayModeBar":False})
+
+
