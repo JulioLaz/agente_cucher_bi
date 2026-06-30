@@ -416,6 +416,58 @@ def detalle_tendencia_articulos(sucursal: str, tendencia: str,
         return pd.DataFrame()
 
 
+def calcular_indice_urgencia(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calcula un Índice de Urgencia de Reposición (IUR) en Python puro,
+    sin consultar la base de nuevo, a partir del DataFrame ya traído por
+    detalle_tendencia_articulos().
+
+    Combina 3 señales normalizadas 0-1:
+      - pendiente_norm:   crecimiento relativo al volumen propio del artículo
+                          (pendiente / promedio_diario) — evita que solo
+                          ganen los artículos de mayor volumen.
+      - riesgo_stock:     1.0 = sin cobertura (0 días), 0.0 = cobertura >= 30 días.
+      - presupuesto_norm: peso económico del artículo (mayor presupuesto
+                          de compra pendiente = mayor prioridad).
+
+    IUR = pendiente_norm*0.4 + riesgo_stock*0.4 + presupuesto_norm*0.2
+
+    Devuelve el mismo DataFrame ordenado por indice_urgencia descendente,
+    con las columnas intermedias visibles para trazabilidad.
+    """
+    if df is None or df.empty:
+        return df
+
+    out = df.copy()
+
+    # Pendiente relativa al volumen propio (evita sesgo hacia artículos grandes)
+    promedio_seguro = out["promedio_diario"].replace(0, 1)
+    out["pendiente_rel"] = out["pendiente"] / promedio_seguro
+
+    # Riesgo de stock: 0 días = 1.0 (máxima urgencia), 30+ días = 0.0
+    out["riesgo_stock"] = (30 - out["dias_cobertura"].clip(upper=30)) / 30
+
+    def _normalizar(serie: pd.Series) -> pd.Series:
+        rango = serie.max() - serie.min()
+        if rango == 0 or pd.isna(rango):
+            return serie * 0
+        return (serie - serie.min()) / rango
+
+    out["pendiente_norm"]   = _normalizar(out["pendiente_rel"])
+    out["presupuesto_norm"] = _normalizar(out["presupuesto_compra"])
+
+    out["indice_urgencia"] = (
+        out["pendiente_norm"]   * 0.4 +
+        out["riesgo_stock"]     * 0.4 +
+        out["presupuesto_norm"] * 0.2
+    ).round(3)
+
+    # Limpiar columnas intermedias de normalización, dejar solo lo legible
+    out = out.drop(columns=["pendiente_rel", "pendiente_norm", "presupuesto_norm"])
+
+    return out.sort_values("indice_urgencia", ascending=False).reset_index(drop=True)
+
+
 # ─── CARGA DEL CATÁLOGO PARA SELECTORES ──────────────────────
 
 

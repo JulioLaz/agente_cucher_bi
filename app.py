@@ -58,7 +58,7 @@ from kpis import (cargar_kpis_header, cargar_kpis_alertas,
                   detalle_sin_stock, detalle_stock_critico, detalle_stock_urgente,
                   detalle_exceso_stock, detalle_valor_perdido, detalle_presupuesto_compra,
                   cargar_tendencia_semanal_resumen, detalle_tendencia_articulos,
-                  cargar_rango_tendencia_semanal)
+                  cargar_rango_tendencia_semanal, calcular_indice_urgencia)
 from notificaciones import (enviar_telegram, guardar_historial,
                              notificar_capacidad_faltante)
 from exportar_excel import generar_excel_detalle
@@ -541,10 +541,29 @@ with col_chat:
                     f'</div>', unsafe_allow_html=True)
 
                 if not df_detalle_tend.empty:
-                    st.dataframe(df_detalle_tend, use_container_width=True, height=320)
+                    orden_urgencia = st.toggle(
+                        "🚨 Ordenar por índice de urgencia (pendiente + stock + presupuesto)",
+                        value=(tipo_activo == "alta"),
+                        key=f"toggle_urgencia_{tipo_activo}",
+                        help="Combina la pendiente de crecimiento, los días de cobertura "
+                             "restantes y el presupuesto de compra en un solo puntaje. "
+                             "Arriba quedan los artículos más urgentes de reponer."
+                    )
+
+                    if orden_urgencia:
+                        df_mostrar_tend = calcular_indice_urgencia(df_detalle_tend)
+                        st.caption(
+                            "🔝 Ordenado por **índice de urgencia**: crece rápido + "
+                            "poca cobertura + alto presupuesto pendiente."
+                        )
+                    else:
+                        df_mostrar_tend = df_detalle_tend
+                        st.caption("🔝 Ordenado por unidades vendidas en el período.")
+
+                    st.dataframe(df_mostrar_tend, use_container_width=True, height=320)
 
                     buffer_tend = generar_excel_detalle(
-                        df_detalle_tend, f"Tendencia {tipo_activo} {suc_sel_tend}"
+                        df_mostrar_tend, f"Tendencia {tipo_activo} {suc_sel_tend}"
                     )
                     col_dl_t, col_close_t = st.columns([1, 1])
                     with col_dl_t:
@@ -799,7 +818,8 @@ st.markdown("""
   <div class="role">Desarrollado por Julio Alberto Lazarte — Data Scientist · BI Lead</div>
   <div class="links">
     <a href="https://juliolaz.github.io" target="_blank">🌐 Portfolio</a>
-    <a href="https://www.linkedin.com/in/juliolazarte" target="_blank">💼 LinkedIn</a>  </div>
+    <a href="https://www.linkedin.com/in/juliolazarte" target="_blank">💼 LinkedIn</a>
+  </div>
   <div class="copy">© 2026 Julio Alberto Lazarte. Todos los derechos reservados.</div>
 </div>
 """, unsafe_allow_html=True)
