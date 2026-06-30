@@ -40,6 +40,8 @@ def _inject_secrets():
 _inject_secrets()
 
 import time
+import io
+import pandas as pd
 import plotly.graph_objects as go
 from datetime import date
 
@@ -52,9 +54,12 @@ from graficos import (grafico_auto, grafico_ventas_sucursal,
 from kpis import (cargar_kpis_header, cargar_kpis_alertas,
                   cargar_ventas_sucursal_mes,
                   cargar_utilidad_diaria, cargar_utilidad_mensual,
-                  cargar_familias, cargar_subfamilias, cargar_proveedores)
+                  cargar_familias, cargar_subfamilias, cargar_proveedores,
+                  detalle_sin_stock, detalle_stock_critico, detalle_stock_urgente,
+                  detalle_exceso_stock, detalle_valor_perdido, detalle_presupuesto_compra)
 from notificaciones import (enviar_telegram, guardar_historial,
                              notificar_capacidad_faltante)
+from exportar_excel import generar_excel_detalle
 
 
 # ─── CONFIGURACIÓN UI ─────────────────────────────────────────
@@ -88,7 +93,7 @@ section[data-testid="stSidebar"] .stSelectbox>div>div{
 .kpi-card-presu {background:linear-gradient(135deg,#4a1942,#9333ea);}
 .kpi-card-dias  {background:linear-gradient(135deg,#1e3a5f,#0ea5e9);}
 .kpi-val{font-size:1.2rem;font-weight:700;color:#ffffff !important;}
-.kpi-lbl{font-size:0.68rem;color:rgba(255,255,255,0.75)!important;
+.kpi-lbl{font-size:0.8rem;color:rgba(255,255,255,0.75)!important;
   margin-top:3px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;}
 .kpi-delta-pos{font-size:0.70rem;color:#86efac !important;font-weight:600;}
 .kpi-delta-neg{font-size:0.70rem;color:#fca5a5 !important;font-weight:600;}
@@ -391,8 +396,11 @@ with col_chat:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # ── FILA DE ALERTAS ─────────────────────────────────
+        # ── FILA DE ALERTAS — TARJETAS CLICKEABLES ──────────
         alertas = cargar_kpis_alertas()
+        if "alerta_activa" not in st.session_state:
+            st.session_state["alerta_activa"] = None
+
         if alertas:
             ss = alertas.get("sin_stock", 0)
             cr = alertas.get("criticos", 0)
@@ -401,20 +409,68 @@ with col_chat:
             vp = alertas.get("valor_perdido_m", 0)
             pm = alertas.get("presupuesto_m", 0)
 
-            a1, a2, a3, a4, a5, a6 = st.columns(6)
             alerta_items = [
-                (a1, f"🔴 {int(ss)}", "Sin stock", "#dc2626"),
-                (a2, f"🟠 {int(cr)}", "Stock crítico ≤3d", "#ea580c"),
-                (a3, f"🟡 {int(ur)}", "Urgente ≤7d", "#ca8a04"),
-                (a4, f"📦 {int(ex)}", "Exceso stock", "#0284c7"),
-                (a5, f"💸 ${vp}M", "Valor perdido", "#7c3aed"),
-                (a6, f"🛒 ${pm}M", "Presupuesto 30d", "#059669"),
+                ("sin_stock", "🔴", f"{int(ss)}", "Sin stock",         "#dc2626", detalle_sin_stock),
+                ("critico",   "🟠", f"{int(cr)}", "Stock crítico ≤3d", "#ea580c", detalle_stock_critico),
+                ("urgente",   "🟡", f"{int(ur)}", "Urgente ≤7d",       "#ca8a04", detalle_stock_urgente),
+                ("exceso",    "📦", f"{int(ex)}", "Exceso stock",      "#0284c7", detalle_exceso_stock),
+                ("perdido",   "💸", f"${vp}M",    "Valor perdido",     "#7c3aed", detalle_valor_perdido),
+                ("presu",     "🛒", f"${pm}M",    "Presupuesto 30d",   "#059669", detalle_presupuesto_compra),
             ]
-            for col, val, lbl, color in alerta_items:
+
+            cols_alertas = st.columns(6)
+            for col, (key, emoji, val, lbl, color, _) in zip(cols_alertas, alerta_items):
                 with col:
+                    activo = st.session_state["alerta_activa"] == key
                     st.markdown(
-                        f'<div style="background:{color}22;border:1px solid {color}55;'                        f'border-radius:8px;padding:6px 10px;text-align:center;">'                        f'<div style="font-size:1rem;font-weight:700;color:{color};">{val}</div>'                        f'<div style="font-size:0.65rem;color:#6b7280;">{lbl}</div></div>',
-                        unsafe_allow_html=True)
+                        f'<div style="text-align:center;font-size:0.68rem;'
+                        f'color:{color if activo else "#6b7280"};font-weight:700;'
+                        f'margin-bottom:-6px;">{lbl}</div>',
+                        unsafe_allow_html=True
+                    )
+                    label_btn = f"{emoji} {val}" + (" ✓" if activo else "")
+                    if st.button(label_btn, key=f"btn_alerta_{key}",
+                                 use_container_width=True,
+                                 type="primary" if activo else "secondary"):
+                        st.session_state["alerta_activa"] = None if activo else key
+                        st.rerun()
+
+            # ── PANEL DE DETALLE — se abre debajo al hacer clic ──
+            activa = st.session_state["alerta_activa"]
+            if activa:
+                item = next(i for i in alerta_items if i[0] == activa)
+                _, _, _, lbl_activa, color_activa, fn_detalle = item
+
+                df_detalle = fn_detalle()
+                st.markdown(
+                    f'<div style="background:{color_activa}11;border-left:4px solid {color_activa};'
+                    f'border-radius:6px;padding:10px 14px;margin-top:10px;">'
+                    f'<b style="color:{color_activa};">📋 Detalle: {lbl_activa}</b> '
+                    f'<span style="color:#6b7280;font-size:0.8rem;">({len(df_detalle)} artículos)</span>'
+                    f'</div>', unsafe_allow_html=True)
+
+                if not df_detalle.empty:
+                    st.dataframe(df_detalle, use_container_width=True, height=320)
+
+                    buffer = generar_excel_detalle(df_detalle, lbl_activa)
+
+                    col_dl, col_close = st.columns([1, 1])
+                    with col_dl:
+                        st.download_button(
+                            f"📥 Descargar Excel — {lbl_activa}",
+                            data=buffer,
+                            file_name=f"cucher_{activa}_{date.today()}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key=f"dl_{activa}"
+                        )
+                    with col_close:
+                        if st.button("✖️ Cerrar detalle", use_container_width=True,
+                                     key="btn_cerrar_alerta"):
+                            st.session_state["alerta_activa"] = None
+                            st.rerun()
+                else:
+                    st.info("No hay artículos en esta categoría en este momento.")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -651,8 +707,7 @@ st.markdown("""
   <div class="role">Desarrollado por Julio Alberto Lazarte — Data Scientist · BI Lead</div>
   <div class="links">
     <a href="https://juliolaz.github.io" target="_blank">🌐 Portfolio</a>
-    <a href="https://www.linkedin.com/in/juliolazarte" target="_blank">💼 LinkedIn</a>
-  </div>
+    <a href="https://www.linkedin.com/in/juliolazarte" target="_blank">💼 LinkedIn</a>  </div>
   <div class="copy">© 2026 Julio Alberto Lazarte. Todos los derechos reservados.</div>
 </div>
 """, unsafe_allow_html=True)

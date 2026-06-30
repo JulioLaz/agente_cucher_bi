@@ -134,17 +134,27 @@ def cargar_utilidad_mensual() -> pd.DataFrame:
 
 # ─── DETALLE DE ALERTAS (para tarjetas clickeables) ──────────
 
+_COLS_STOCK = """stk_hiper, stk_corrientes, stk_sabin, stk_formosa,
+               stk_express, stk_TIROL AS stk_tirol, stk_central,
+               STK_TOTAL AS stock_total"""
+
+_COLS_ABASTECER = """cor_abastecer, exp_abastecer, for_abastecer,
+               sab_abastecer, hip_abastecer, total_abastecer"""
+
+
 @st.cache_data(ttl=300)
 def detalle_sin_stock(top_n: int = 50) -> pd.DataFrame:
     """Artículos sin stock con alerta de reabastecimiento activa."""
     q = f"""
         SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
-               dias_cobertura, STK_TOTAL AS stock_total,
-               stk_hiper, stk_corrientes, stk_sabin, stk_formosa,
-               cant_total AS ventas_90d, PRESUPUESTO AS presupuesto_compra
+               dias_cobertura, uxb,
+               {_COLS_STOCK},
+               {_COLS_ABASTECER},
+               cant_total AS ventas_90d,
+               PRESUPUESTO AS presupuesto_compra
         FROM {T_ALERT}
         WHERE alerta_reabastecer = 'Sí' AND dias_cobertura = 0
-        ORDER BY cant_total DESC
+        ORDER BY PRESUPUESTO DESC
         LIMIT {top_n}
     """
     try:
@@ -158,12 +168,14 @@ def detalle_stock_critico(top_n: int = 50) -> pd.DataFrame:
     """Artículos con stock crítico — cobertura entre 1 y 3 días."""
     q = f"""
         SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
-               dias_cobertura, STK_TOTAL AS stock_total,
-               stk_hiper, stk_corrientes, stk_sabin, stk_formosa,
-               cant_total AS ventas_90d, PRESUPUESTO AS presupuesto_compra
+               dias_cobertura, uxb,
+               {_COLS_STOCK},
+               {_COLS_ABASTECER},
+               cant_total AS ventas_90d,
+               PRESUPUESTO AS presupuesto_compra
         FROM {T_ALERT}
         WHERE alerta_reabastecer = 'Sí' AND dias_cobertura BETWEEN 1 AND 3
-        ORDER BY cant_total DESC
+        ORDER BY PRESUPUESTO DESC
         LIMIT {top_n}
     """
     try:
@@ -177,12 +189,14 @@ def detalle_stock_urgente(top_n: int = 50) -> pd.DataFrame:
     """Artículos urgentes — cobertura entre 4 y 7 días."""
     q = f"""
         SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
-               dias_cobertura, STK_TOTAL AS stock_total,
-               stk_hiper, stk_corrientes, stk_sabin, stk_formosa,
-               cant_total AS ventas_90d, PRESUPUESTO AS presupuesto_compra
+               dias_cobertura, uxb,
+               {_COLS_STOCK},
+               {_COLS_ABASTECER},
+               cant_total AS ventas_90d,
+               PRESUPUESTO AS presupuesto_compra
         FROM {T_ALERT}
         WHERE alerta_reabastecer = 'Sí' AND dias_cobertura BETWEEN 4 AND 7
-        ORDER BY cant_total DESC
+        ORDER BY PRESUPUESTO DESC
         LIMIT {top_n}
     """
     try:
@@ -195,13 +209,15 @@ def detalle_stock_urgente(top_n: int = 50) -> pd.DataFrame:
 def detalle_exceso_stock(top_n: int = 50) -> pd.DataFrame:
     """Artículos con exceso de stock — candidatos a traslado entre sucursales."""
     q = f"""
-        SELECT descripcion, familia, subfamilia,
+        SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
+               dias_cobertura, uxb,
                exceso_STK AS exceso_stock,
-               stk_hiper, stk_corrientes, stk_sabin, stk_formosa,
-               dias_cobertura
+               {_COLS_STOCK},
+               {_COLS_ABASTECER},
+               PRESUPUESTO AS presupuesto_compra
         FROM {T_ALERT}
         WHERE exceso_STK > 0
-        ORDER BY exceso_STK DESC
+        ORDER BY PRESUPUESTO DESC
         LIMIT {top_n}
     """
     try:
@@ -215,12 +231,15 @@ def detalle_valor_perdido(top_n: int = 50) -> pd.DataFrame:
     """Artículos con mayor valor perdido por quiebres de stock."""
     q = f"""
         SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
+               dias_cobertura, uxb,
                valor_perdido_TOTAL AS valor_perdido,
                unidades_perdidas_TOTAL AS unidades_perdidas,
-               dias_cobertura, STK_TOTAL AS stock_total
+               {_COLS_STOCK},
+               {_COLS_ABASTECER},
+               PRESUPUESTO AS presupuesto_compra
         FROM {T_ALERT}
         WHERE valor_perdido_TOTAL > 0
-        ORDER BY valor_perdido_TOTAL DESC
+        ORDER BY PRESUPUESTO DESC
         LIMIT {top_n}
     """
     try:
@@ -234,9 +253,10 @@ def detalle_presupuesto_compra(top_n: int = 50) -> pd.DataFrame:
     """Detalle de presupuesto de compra próximos 30 días, por artículo."""
     q = f"""
         SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
-               PRESUPUESTO AS presupuesto_compra,
-               total_abastecer AS unidades_a_pedir,
-               dias_cobertura, STK_TOTAL AS stock_total
+               dias_cobertura, uxb,
+               {_COLS_STOCK},
+               {_COLS_ABASTECER},
+               PRESUPUESTO AS presupuesto_compra
         FROM {T_ALERT}
         WHERE PRESUPUESTO > 0
         ORDER BY PRESUPUESTO DESC
@@ -249,6 +269,7 @@ def detalle_presupuesto_compra(top_n: int = 50) -> pd.DataFrame:
 
 
 # ─── CARGA DEL CATÁLOGO PARA SELECTORES ──────────────────────
+
 
 @st.cache_data(ttl=3600)
 def cargar_familias() -> list[str]:
