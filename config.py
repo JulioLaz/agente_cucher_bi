@@ -13,9 +13,9 @@ T_PRECIOS  = "my_db.ultimos_precios"
 
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 MODELOS = [
-    "deepseek-ai/deepseek-v4-flash",
-    "mistralai/mistral-small-4-119b-2603",
+    "mistralai/mistral-small-4-119b-2603",   # más rápido y estable
     "z-ai/glm-5.1",
+    "deepseek-ai/deepseek-v4-flash",
     "meta/llama-3.1-8b-instruct",
 ]
 
@@ -31,7 +31,7 @@ COLORES_SUC    = {
     "tirol": "#6b7280", "central": "#374151",
 }
 MAX_TOKENS_SQL      = 800
-MAX_TOKENS_ANALISIS = 1200
+MAX_TOKENS_ANALISIS = 1600
 MAX_TOKENS_INTERP   = 400
 TIMEOUT_NVIDIA      = 90
 MAX_FILAS_RESULTADO = 50
@@ -40,16 +40,24 @@ MAX_FILAS_RESULTADO = 50
 def get_token_md()   -> str: return os.environ.get("TOKEN_MATHERDUCK", "")
 def get_nvidia_key() -> str: return os.environ.get("key_nvidia", "")
 def get_tg_token()   -> str: return os.environ.get("token_bot_telegram", "")
-def get_usuarios()   -> dict:
+def get_usuarios() -> dict:
+    """
+    Lee usuarios SOLO desde st.secrets o USUARIOS_JSON en env.
+    Sin fallback hardcodeado — si no hay secrets, retorna dict vacío
+    y el login bloqueará el acceso.
+    """
     import json
+    # Primero: USUARIOS_JSON inyectado por app.py desde st.secrets
     raw = os.environ.get("USUARIOS_JSON", "")
     if raw:
         try:
             return json.loads(raw)
         except Exception:
             pass
-    return {
-        "cristina": os.environ.get("USER_CRISTINA", "vamos_argentina"),
-        "horacio":  os.environ.get("USER_HORACIO",  "vamos_argentina"),
-        "julio":    os.environ.get("USER_JULIO",    "vamos_argentina"),
-    }
+    # Segundo: variables individuales inyectadas por app.py
+    usuarios = {}
+    for u in ["cristina", "horacio", "julio"]:
+        pwd = os.environ.get(f"USR_{u.upper()}", "")
+        if pwd:
+            usuarios[u] = pwd
+    return usuarios  # vacío si no hay secrets → nadie puede entrar
