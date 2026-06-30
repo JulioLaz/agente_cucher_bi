@@ -102,7 +102,7 @@ section[data-testid="stSidebar"] .stSelectbox>div>div{
   margin-left:6px;border:1px solid #166534;}
 
 /* Panel títulos */
-.panel-title{font-size:0.78rem;font-weight:700;color:#111212 !important;
+.panel-title{font-size:0.78rem;font-weight:700;color:#f0f4ff !important;
   text-transform:uppercase;letter-spacing:0.06em;
   margin-bottom:6px;border-bottom:2px solid #d97706;padding-bottom:3px;}
 .panel-azul{background-color:#1a2744;border-radius:12px;padding:14px 12px;}
@@ -629,3 +629,30 @@ with col_panel:
             st.plotly_chart(fig, key="panel_mens",
                             width="stretch",
                             config={"displayModeBar":False})
+
+
+# ─── FOOTER PROFESIONAL ───────────────────────────────────────
+st.markdown("""
+<style>
+.footer-cucher{
+    margin-top:32px;padding:18px 24px;
+    border-top:1px solid #e8d5a3;
+    text-align:center;
+}
+.footer-cucher .name{font-size:0.85rem;font-weight:700;color:#1a2744;}
+.footer-cucher .role{font-size:0.72rem;color:#6b7280;margin-top:2px;}
+.footer-cucher .links{font-size:0.72rem;margin-top:8px;}
+.footer-cucher .links a{color:#1a2744;text-decoration:none;margin:0 10px;font-weight:600;}
+.footer-cucher .links a:hover{color:#d97706;text-decoration:underline;}
+.footer-cucher .copy{font-size:0.68rem;color:#9ca3af;margin-top:10px;}
+</style>
+<div class="footer-cucher">
+  <div class="name">🛒 Cucher Agente BI</div>
+  <div class="role">Desarrollado por Julio Alberto Lazarte — Data Scientist · BI Lead</div>
+  <div class="links">
+    <a href="https://juliolaz.github.io" target="_blank">🌐 Portfolio</a>
+    <a href="https://www.linkedin.com/in/juliolazarte" target="_blank">💼 LinkedIn</a>
+  </div>
+  <div class="copy">© 2026 Julio Alberto Lazarte. Todos los derechos reservados.</div>
+</div>
+""", unsafe_allow_html=True)
