@@ -594,6 +594,78 @@ def tpl_impacto_apertura_sabin(ctx: Contexto) -> pd.DataFrame | None:
     return df if not df.empty else None
 
 
+def tpl_tendencia_semanal(ctx: Contexto, top_n: int = 30) -> pd.DataFrame | None:
+    """
+    Artículos con tendencia de ventas alta/baja/estable en los últimos 6 días,
+    calculado con regresión lineal (regr_slope nativo de DuckDB).
+    Detecta la sucursal mencionada y si pide alta/baja específicamente.
+    """
+    p_lower = ctx.texto_libre.lower()
+
+    if any(x in p_lower for x in ["tendencia baja", "bajando", "en baja", "cayendo"]):
+        tendencia = "baja"
+    elif any(x in p_lower for x in ["tendencia alta", "subiendo", "en alza", "creciendo"]):
+        tendencia = "alta"
+    else:
+        tendencia = "alta"  # default: lo más accionable para reposición
+
+    filtro_suc = ""
+    if ctx.sucursales:
+        filtro_suc = f"AND t.sucursal = '{ctx.sucursales[0]}'"
+
+    sql = f"""
+        WITH base AS (
+            SELECT t.idarticulo, t.sucursal,
+                   CAST(t.fecha_comprobante AS DATE) AS fecha,
+                   SUM(t.cantidad_total) AS cantidad
+            FROM {T_TICKETS} t
+            WHERE CAST(t.fecha_comprobante AS DATE) >=
+                  (SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM {T_TICKETS}) - INTERVAL 6 DAY
+            {filtro_suc}
+            GROUP BY t.idarticulo, t.sucursal, CAST(t.fecha_comprobante AS DATE)
+        ),
+        dias AS (
+            SELECT *,
+                   DATE_DIFF('day',
+                       MIN(fecha) OVER (PARTITION BY idarticulo, sucursal), fecha
+                   ) AS x_dia
+            FROM base
+        ),
+        regresion AS (
+            SELECT idarticulo, sucursal,
+                   COUNT(*) AS puntos,
+                   ROUND(SUM(cantidad),0) AS unidades_periodo,
+                   ROUND(regr_slope(cantidad, x_dia),2) AS pendiente
+            FROM dias
+            GROUP BY idarticulo, sucursal
+        ),
+        clasif AS (
+            SELECT *,
+                   CASE
+                     WHEN puntos < 2 THEN 'estable'
+                     WHEN pendiente > 0.1 THEN 'alta'
+                     WHEN pendiente < -0.1 THEN 'baja'
+                     ELSE 'estable'
+                   END AS tendencia
+            FROM regresion
+        )
+        SELECT a.descripcion, c.sucursal, a.familia, a.subfamilia,
+               TRIM(a.proveedor) AS proveedor,
+               c.unidades_periodo, c.pendiente,
+               a.dias_cobertura, a.STK_TOTAL AS stock_total
+        FROM clasif c
+        JOIN {T_ALERT} a ON c.idarticulo = a.idarticulo
+        WHERE c.tendencia = '{tendencia}'
+        ORDER BY c.unidades_periodo DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template tendencia_semanal] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
 # ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
@@ -601,6 +673,19 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     Elige y ejecuta el template más apropiado según el contexto.
     Retorna DataFrame o None si no hay template aplicable.
     """
+    p_lower_temprano = ctx.texto_libre.lower()
+
+    # TENDENCIA SEMANAL — no requiere categoría/marca, solo sucursal opcional
+    pide_tendencia = any(x in p_lower_temprano for x in [
+        "tendencia", "subiendo", "bajando", "en alza", "en baja",
+        "creciendo", "cayendo", "tendencia alta", "tendencia baja",
+        "ultimos 6 dias", "últimos 6 días", "ultimos seis dias"])
+    if pide_tendencia:
+        print(f"   [router] → tpl_tendencia_semanal")
+        df = tpl_tendencia_semanal(ctx)
+        if df is not None:
+            return df
+
     # Necesita al menos categoría o marcas
     if not ctx.categoria_key and not ctx.marcas and not ctx.rango_min_cc:
         return None

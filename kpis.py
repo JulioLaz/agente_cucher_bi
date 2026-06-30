@@ -268,6 +268,154 @@ def detalle_presupuesto_compra(top_n: int = 50) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=600)
+def cargar_rango_tendencia_semanal() -> tuple[str, str]:
+    """
+    Devuelve (desde, hasta) como strings 'd mmm' en español para el período
+    de 7 días usado en el análisis de tendencia semanal.
+    """
+    q = f"""
+        SELECT
+            (SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM {T_TICKETS}) - INTERVAL 6 DAY AS desde,
+            (SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM {T_TICKETS}) AS hasta
+    """
+    meses_es = {1:"ene",2:"feb",3:"mar",4:"abr",5:"may",6:"jun",
+                7:"jul",8:"ago",9:"sep",10:"oct",11:"nov",12:"dic"}
+    try:
+        row = get_con().execute(q).df().iloc[0]
+        desde, hasta = row["desde"], row["hasta"]
+        desde_str = f"{desde.day} {meses_es[desde.month]}"
+        hasta_str = f"{hasta.day} {meses_es[hasta.month]}"
+        return desde_str, hasta_str
+    except Exception:
+        return "", ""
+
+
+@st.cache_data(ttl=600)
+def cargar_tendencia_semanal_resumen() -> pd.DataFrame:
+    """
+    Resumen de tendencia de ventas (últimos 7 días) por sucursal, calculado
+    con regresión lineal (regr_slope nativo de DuckDB) igual que el análisis
+    de Cristina: alta / baja / estable según la pendiente de cantidad_total
+    vendida día a día.
+    """
+    q = f"""
+        WITH base AS (
+            SELECT idarticulo, sucursal,
+                   CAST(fecha_comprobante AS DATE) AS fecha,
+                   SUM(cantidad_total) AS cantidad
+            FROM {T_TICKETS}
+            WHERE CAST(fecha_comprobante AS DATE) >=
+                  (SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM {T_TICKETS}) - INTERVAL 6 DAY
+            GROUP BY idarticulo, sucursal, CAST(fecha_comprobante AS DATE)
+        ),
+        dias AS (
+            SELECT *,
+                   DATE_DIFF('day',
+                       MIN(fecha) OVER (PARTITION BY idarticulo, sucursal), fecha
+                   ) AS x_dia
+            FROM base
+        ),
+        regresion AS (
+            SELECT idarticulo, sucursal,
+                   COUNT(*) AS puntos,
+                   AVG(cantidad) AS promedio,
+                   regr_slope(cantidad, x_dia) AS pendiente
+            FROM dias
+            GROUP BY idarticulo, sucursal
+        ),
+        clasif AS (
+            SELECT idarticulo, sucursal,
+                   CASE
+                     WHEN puntos < 2 THEN 'estable'
+                     WHEN pendiente > 0.1 THEN 'alta'
+                     WHEN pendiente < -0.1 THEN 'baja'
+                     ELSE 'estable'
+                   END AS tendencia
+            FROM regresion
+        ),
+        resumen AS (
+            SELECT sucursal, tendencia, COUNT(*) AS cantidad_articulos
+            FROM clasif
+            GROUP BY sucursal, tendencia
+        ),
+        totales AS (
+            SELECT sucursal, SUM(cantidad_articulos) AS total_articulos
+            FROM resumen GROUP BY sucursal
+        )
+        SELECT r.sucursal, r.tendencia, r.cantidad_articulos, t.total_articulos,
+               ROUND(r.cantidad_articulos * 100.0 / t.total_articulos) AS porcentaje
+        FROM resumen r
+        JOIN totales t ON r.sucursal = t.sucursal
+        ORDER BY r.sucursal, r.tendencia
+    """
+    try:
+        return get_con().execute(q).df()
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=600)
+def detalle_tendencia_articulos(sucursal: str, tendencia: str,
+                                top_n: int = 100) -> pd.DataFrame:
+    """
+    Detalle de artículos para una sucursal + clasificación de tendencia
+    específica (alta / baja / estable), con descripción, familia, proveedor,
+    ventas/unidades del período y la pendiente calculada.
+    """
+    q = f"""
+        WITH base AS (
+            SELECT t.idarticulo, t.sucursal,
+                   CAST(t.fecha_comprobante AS DATE) AS fecha,
+                   SUM(t.cantidad_total) AS cantidad
+            FROM {T_TICKETS} t
+            WHERE CAST(t.fecha_comprobante AS DATE) >=
+                  (SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM {T_TICKETS}) - INTERVAL 6 DAY
+              AND t.sucursal = '{sucursal}'
+            GROUP BY t.idarticulo, t.sucursal, CAST(t.fecha_comprobante AS DATE)
+        ),
+        dias AS (
+            SELECT *,
+                   DATE_DIFF('day',
+                       MIN(fecha) OVER (PARTITION BY idarticulo, sucursal), fecha
+                   ) AS x_dia
+            FROM base
+        ),
+        regresion AS (
+            SELECT idarticulo, sucursal,
+                   COUNT(*) AS puntos,
+                   ROUND(AVG(cantidad),1) AS promedio_diario,
+                   ROUND(SUM(cantidad),0) AS unidades_periodo,
+                   ROUND(regr_slope(cantidad, x_dia),2) AS pendiente
+            FROM dias
+            GROUP BY idarticulo, sucursal
+        ),
+        clasif AS (
+            SELECT *,
+                   CASE
+                     WHEN puntos < 2 THEN 'estable'
+                     WHEN pendiente > 0.1 THEN 'alta'
+                     WHEN pendiente < -0.1 THEN 'baja'
+                     ELSE 'estable'
+                   END AS tendencia
+            FROM regresion
+        )
+        SELECT a.descripcion, a.familia, a.subfamilia, TRIM(a.proveedor) AS proveedor,
+               c.unidades_periodo, c.promedio_diario, c.pendiente,
+               a.dias_cobertura, a.STK_TOTAL AS stock_total,
+               a.PRESUPUESTO AS presupuesto_compra
+        FROM clasif c
+        JOIN {T_ALERT} a ON c.idarticulo = a.idarticulo
+        WHERE c.tendencia = '{tendencia}'
+        ORDER BY c.unidades_periodo DESC
+        LIMIT {top_n}
+    """
+    try:
+        return get_con().execute(q).df()
+    except Exception:
+        return pd.DataFrame()
+
+
 # ─── CARGA DEL CATÁLOGO PARA SELECTORES ──────────────────────
 
 

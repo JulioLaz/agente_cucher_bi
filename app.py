@@ -56,7 +56,9 @@ from kpis import (cargar_kpis_header, cargar_kpis_alertas,
                   cargar_utilidad_diaria, cargar_utilidad_mensual,
                   cargar_familias, cargar_subfamilias, cargar_proveedores,
                   detalle_sin_stock, detalle_stock_critico, detalle_stock_urgente,
-                  detalle_exceso_stock, detalle_valor_perdido, detalle_presupuesto_compra)
+                  detalle_exceso_stock, detalle_valor_perdido, detalle_presupuesto_compra,
+                  cargar_tendencia_semanal_resumen, detalle_tendencia_articulos,
+                  cargar_rango_tendencia_semanal)
 from notificaciones import (enviar_telegram, guardar_historial,
                              notificar_capacidad_faltante)
 from exportar_excel import generar_excel_detalle
@@ -93,7 +95,7 @@ section[data-testid="stSidebar"] .stSelectbox>div>div{
 .kpi-card-presu {background:linear-gradient(135deg,#4a1942,#9333ea);}
 .kpi-card-dias  {background:linear-gradient(135deg,#1e3a5f,#0ea5e9);}
 .kpi-val{font-size:1.2rem;font-weight:700;color:#ffffff !important;}
-.kpi-lbl{font-size:0.8rem;color:rgba(255,255,255,0.75)!important;
+.kpi-lbl{font-size:0.68rem;color:rgba(255,255,255,0.75)!important;
   margin-top:3px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;}
 .kpi-delta-pos{font-size:0.70rem;color:#86efac !important;font-weight:600;}
 .kpi-delta-neg{font-size:0.70rem;color:#fca5a5 !important;font-weight:600;}
@@ -239,6 +241,8 @@ KEYS_DEFAULT = {
     "interpretacion_pendiente":None,
     "pregunta_pendiente":      "",
     "dfs_guardados":           {},
+    "alerta_activa":           None,
+    "tendencia_activa":        None,
 }
 for k, v in KEYS_DEFAULT.items():
     if k not in st.session_state:
@@ -445,10 +449,8 @@ with col_chat:
                 st.markdown(
                     f'<div style="background:{color_activa}11;border-left:4px solid {color_activa};'
                     f'border-radius:6px;padding:10px 14px;margin-top:10px;">'
-                    f'<b style="color:{color_activa};">📋 Detalle: {lbl_activa}</b>'
-                    f'<span style="color:#6b7280;font-size:0.9rem;">({len(df_detalle)} artículos)</span>'
-                    f'- Las cantidades a abastecer son para 30 días - '
-                    f'<span style="color:{color_activa};"> (los valores negativos representan exceso)</span>'
+                    f'<b style="color:{color_activa};">📋 Detalle: {lbl_activa}</b> '
+                    f'<span style="color:#6b7280;font-size:0.8rem;">({len(df_detalle)} artículos)</span>'
                     f'</div>', unsafe_allow_html=True)
 
                 if not df_detalle.empty:
@@ -473,6 +475,94 @@ with col_chat:
                             st.rerun()
                 else:
                     st.info("No hay artículos en esta categoría en este momento.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── TENDENCIA SEMANAL POR SUCURSAL (últimos 6 días) ─────
+        desde_tend, hasta_tend = cargar_rango_tendencia_semanal()
+        titulo_tend = "##### 📈 Tendencia de ventas — últimos 7 días"
+        if desde_tend and hasta_tend:
+            titulo_tend += f" (del {desde_tend} al {hasta_tend})"
+        st.markdown(titulo_tend)
+        df_tend_resumen = cargar_tendencia_semanal_resumen()
+
+        if "tendencia_activa" not in st.session_state:
+            st.session_state["tendencia_activa"] = None  # (sucursal, tipo)
+
+        if not df_tend_resumen.empty:
+            sucursales_tend = sorted(df_tend_resumen["sucursal"].unique().tolist())
+            suc_sel_tend = st.selectbox(
+                "Sucursal", sucursales_tend,
+                key="select_suc_tendencia",
+                label_visibility="collapsed"
+            )
+
+            df_suc_tend = df_tend_resumen[df_tend_resumen["sucursal"] == suc_sel_tend]
+            colores_tend = {"alta": "#16a34a", "baja": "#dc2626", "estable": "#6b7280"}
+            emojis_tend  = {"alta": "📈", "baja": "📉", "estable": "➖"}
+
+            cols_tend = st.columns(3)
+            for col, tipo in zip(cols_tend, ["alta", "baja", "estable"]):
+                fila = df_suc_tend[df_suc_tend["tendencia"] == tipo]
+                cant = int(fila["cantidad_articulos"].iloc[0]) if not fila.empty else 0
+                pct  = int(fila["porcentaje"].iloc[0]) if not fila.empty else 0
+                color = colores_tend[tipo]
+                emoji = emojis_tend[tipo]
+
+                with col:
+                    activa_tend = st.session_state["tendencia_activa"] == (suc_sel_tend, tipo)
+                    label_tend = f"{emoji} {cant} ({pct}%)" + (" ✓" if activa_tend else "")
+                    if st.button(label_tend, key=f"btn_tend_{tipo}",
+                                 use_container_width=True,
+                                 type="primary" if activa_tend else "secondary"):
+                        st.session_state["tendencia_activa"] = (
+                            None if activa_tend else (suc_sel_tend, tipo)
+                        )
+                        st.rerun()
+                    st.markdown(
+                        f'<div style="text-align:center;font-size:0.68rem;'
+                        f'color:{color};font-weight:700;margin-top:-4px;">'
+                        f'Tendencia {tipo}</div>',
+                        unsafe_allow_html=True
+                    )
+
+            # ── Detalle de artículos para la tendencia seleccionada ──
+            activa_tend_val = st.session_state["tendencia_activa"]
+            if activa_tend_val and activa_tend_val[0] == suc_sel_tend:
+                _, tipo_activo = activa_tend_val
+                color_activo = colores_tend[tipo_activo]
+                df_detalle_tend = detalle_tendencia_articulos(suc_sel_tend, tipo_activo)
+
+                st.markdown(
+                    f'<div style="background:{color_activo}11;border-left:4px solid {color_activo};'
+                    f'border-radius:6px;padding:10px 14px;margin-top:10px;">'
+                    f'<b style="color:{color_activo};">📋 Artículos en tendencia {tipo_activo} — {suc_sel_tend}</b> '
+                    f'<span style="color:#6b7280;font-size:0.8rem;">({len(df_detalle_tend)} artículos)</span>'
+                    f'</div>', unsafe_allow_html=True)
+
+                if not df_detalle_tend.empty:
+                    st.dataframe(df_detalle_tend, use_container_width=True, height=320)
+
+                    buffer_tend = generar_excel_detalle(
+                        df_detalle_tend, f"Tendencia {tipo_activo} {suc_sel_tend}"
+                    )
+                    col_dl_t, col_close_t = st.columns([1, 1])
+                    with col_dl_t:
+                        st.download_button(
+                            f"📥 Descargar Excel — Tendencia {tipo_activo} ({suc_sel_tend})",
+                            data=buffer_tend,
+                            file_name=f"cucher_tendencia_{tipo_activo}_{suc_sel_tend}_{date.today()}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key=f"dl_tend_{tipo_activo}"
+                        )
+                    with col_close_t:
+                        if st.button("✖️ Cerrar detalle", use_container_width=True,
+                                     key="btn_cerrar_tendencia"):
+                            st.session_state["tendencia_activa"] = None
+                            st.rerun()
+                else:
+                    st.info("No hay artículos en esta clasificación de tendencia.")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
