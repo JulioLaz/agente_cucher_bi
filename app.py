@@ -49,7 +49,8 @@ from procesador import procesar
 from interprete import interpretar
 from graficos import (grafico_auto, grafico_ventas_sucursal,
                       grafico_utilidad_diaria, grafico_utilidad_mensual)
-from kpis import (cargar_kpis_header, cargar_ventas_sucursal_mes,
+from kpis import (cargar_kpis_header, cargar_kpis_alertas,
+                  cargar_ventas_sucursal_mes,
                   cargar_utilidad_diaria, cargar_utilidad_mensual,
                   cargar_familias, cargar_subfamilias, cargar_proveedores)
 from notificaciones import (enviar_telegram, guardar_historial,
@@ -390,6 +391,33 @@ with col_chat:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
+        # ── FILA DE ALERTAS ─────────────────────────────────
+        alertas = cargar_kpis_alertas()
+        if alertas:
+            ss = alertas.get("sin_stock", 0)
+            cr = alertas.get("criticos", 0)
+            ur = alertas.get("urgentes", 0)
+            ex = alertas.get("exceso_stock", 0)
+            vp = alertas.get("valor_perdido_m", 0)
+            pm = alertas.get("presupuesto_m", 0)
+
+            a1, a2, a3, a4, a5, a6 = st.columns(6)
+            alerta_items = [
+                (a1, f"🔴 {int(ss)}", "Sin stock", "#dc2626"),
+                (a2, f"🟠 {int(cr)}", "Stock crítico ≤3d", "#ea580c"),
+                (a3, f"🟡 {int(ur)}", "Urgente ≤7d", "#ca8a04"),
+                (a4, f"📦 {int(ex)}", "Exceso stock", "#0284c7"),
+                (a5, f"💸 ${vp}M", "Valor perdido", "#7c3aed"),
+                (a6, f"🛒 ${pm}M", "Presupuesto 30d", "#059669"),
+            ]
+            for col, val, lbl, color in alerta_items:
+                with col:
+                    st.markdown(
+                        f'<div style="background:{color}22;border:1px solid {color}55;'                        f'border-radius:8px;padding:6px 10px;text-align:center;">'                        f'<div style="font-size:1rem;font-weight:700;color:{color};">{val}</div>'                        f'<div style="font-size:0.65rem;color:#6b7280;">{lbl}</div></div>',
+                        unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         with st.expander("ℹ️ ¿Para qué sirvo? — capacidades del agente",
                          expanded=False):
             st.markdown("""
@@ -618,5 +646,3 @@ with col_panel:
             st.plotly_chart(fig, key="panel_mens",
                             width="stretch",
                             config={"displayModeBar":False})
-
-

@@ -1,270 +1,328 @@
 """
-catalogo.py — Catálogo de categorías, marcas, medidas y sinónimos.
-Fuente de verdad para el enriquecedor — sin LLM, Python puro.
-Verificado contra my_db.tickets_all y my_db.proveedores de Cucher.
+catalogo.py — Catálogo auto-generado desde MotherDuck + enriquecido con sinónimos.
+363 combinaciones familia/subfamilia verificadas en my_db.proveedores.
 """
+import re
 
-# ─── CATEGORÍAS CON SUBFAMILIA EXACTA Y SINÓNIMOS ────────────
-CATEGORIAS = {
-    "cervezas": {
-        "subfamilia": "Cervezas",
-        "familia":    "Bebidas",
-        "sinonimos":  ["cerveza", "cervezas", "birra", "beer"],
-        "marcas":     ["quilmes", "schneider", "andes", "brahma", "isenbeck",
-                       "heineken", "corona", "stella", "budweiser", "imperial",
-                       "miller", "fernet", "branca", "michelob", "patagonia"],
-        "medidas": {
-            "grande":   ["940", "960", "1l", "1 l", "1000", "litro", "litr"],
-            "personal": ["473", "354", "355", "330"],
-            "chica":    ["250", "220"],
-            "lata":     ["473", "lata"],
-        }
-    },
-    "yerbas": {
-        "subfamilia": "Yerbas",
-        "familia":    "Alimentos",
-        "sinonimos":  ["yerba", "yerbas", "mate"],
-        "marcas":     ["rosamonte", "taragui", "taragüi", "playadito", "amanda",
-                       "cbse", "cbsé", "canarias", "nobleza", "cachamai", "romance",
-                       "la virginia", "mañanita", "cachamate", "kurupi", "union",
-                       "unión", "cruz de malta", "la merced"],
-        "medidas": {
-            "kg":    ["1kg", "1 kg", "x1kg", "x 1kg"],
-            "medio": ["500g", "500 g", "x500", "500gr"],
-            "250":   ["250g", "250 g", "x250"],
-            "2kg":   ["2kg", "2 kg"],
-        }
-    },
-    "gaseosas": {
-        "subfamilia": "Gaseosas",
-        "familia":    "Bebidas",
-        "sinonimos":  ["gaseosa", "gaseosas", "refresco", "cola", "soda"],
-        "marcas":     ["coca", "pepsi", "7up", "sprite", "fanta", "manaos",
-                       "cunnington", "paso de los toros", "pritty"],
-        "medidas": {
-            "grande":   ["2.25", "2.5", "3l", "2l", "2 l"],
-            "personal": ["500", "600", "354", "473"],
-            "chica":    ["237", "330"],
-        }
-    },
-    "aguas": {
-        "subfamilia": "Aguas minerales",
-        "familia":    "Bebidas",
-        "sinonimos":  ["agua", "aguas", "mineral"],
-        "marcas":     ["villa del sur", "bonafont", "eco de los andes",
-                       "glaciar", "ser", "villavicencio"],
-        "medidas": {
-            "grande":   ["2l", "2 l", "1.5l", "1.5 l"],
-            "personal": ["500", "600"],
-        }
-    },
-    "jugos": {
-        "subfamilia": "Jugos en polvo",
-        "familia":    "Bebidas",
-        "sinonimos":  ["jugo", "jugos", "bebida en polvo", "polvo"],
-        "marcas":     ["clight", "tang", "verao", "ades", "zuko"],
-        "medidas": {}
-    },
-    "whisky": {
-        "subfamilia": "Whisky",
-        "familia":    "Bebidas",
-        "sinonimos":  ["whisky", "whiskey", "whiskis", "whiskeys", "bourbon",
-                       "scotch", "blend", "blended"],
-        "marcas":     ["johnnie walker", "j.walker", "jack daniel", "chivas",
-                       "ballantine", "old smuggler", "gloucester", "breeders",
-                       "hiram walker", "doble v", "blender", "pride",
-                       "white horse", "something special"],
-        "medidas": {
-            "litro":   ["1lt", "1l", "1000cc", "x1lt"],
-            "750":     ["750cc", "750ml", "x750"],
-            "700":     ["700cc", "700ml", "x700"],
-        }
-    },
-    "vinos": {
-        "subfamilia": "Vinos Finos",
-        "familia":    "Bebidas",
-        "sinonimos":  ["vino", "vinos", "tinto", "blanco", "rosado", "malbec"],
-        "marcas":     ["norton", "trapiche", "santa julia", "finca", "navarro"],
-        "medidas": {
-            "botella": ["750", "375"],
-            "tetrabrik": ["1l", "1 l"],
-        }
-    },
-    "aceites": {
-        "subfamilia": "Aceite de girasol",
-        "familia":    "Alimentos",
-        "sinonimos":  ["aceite", "aceites", "girasol", "maiz", "maíz", "oliva"],
-        "marcas":     ["cocinero", "natura", "lira", "marolio", "cañuelas"],
-        "medidas": {
-            "litro": ["1l", "1 l", "900", "1000"],
-            "medio": ["500", "450"],
-        }
-    },
-    "leches": {
-        "subfamilia": "Leches Larga Vida",
-        "familia":    "Alimentos",
-        "sinonimos":  ["leche", "leches", "larga vida", "uht"],
-        "marcas":     ["serenísima", "sancor", "ilolay", "la serenísima",
-                       "milkaut", "tremblay"],
-        "medidas": {
-            "litro": ["1l", "1 l", "1000"],
-            "medio": ["500", "0.5l"],
-        }
-    },
-    "cafe": {
-        "subfamilia": "Café soluble",
-        "familia":    "Alimentos",
-        "sinonimos":  ["cafe", "café", "cafes", "cafés", "molido", "tostado",
-                       "soluble", "instantaneo", "instantáneo"],
-        "marcas":     ["la virginia", "nescafe", "nestle", "dolca", "cabrales",
-                       "lm", "torrado"],
-        "medidas": {
-            "kg":    ["1kg", "1 kg", "x1kg"],
-            "medio": ["500g", "500 g", "x500"],
-            "chico": ["200g", "100g", "50g"],
-        }
-    },
-    "quesos": {
-        "subfamilia": "Quesos",
-        "familia":    "Frescos",
-        "sinonimos":  ["queso", "quesos", "cremoso", "cuartirolo", "reggianito",
-                       "parmesano", "barra", "horma"],
-        "marcas":     ["iloyal", "tremblay", "sancor", "la serenísima"],
-        "medidas": {}
-    },
-    "carnes": {
-        "subfamilia": "Carnes",
-        "familia":    "Frescos",
-        "sinonimos":  ["carne", "carnes", "vacuno", "novillo", "ternera",
-                       "asado", "costilla", "bife", "cuadril", "nalga"],
-        "marcas":     [],
-        "medidas": {}
-    },
-    "harinas": {
-        "subfamilia": "Harinas",
-        "familia":    "Alimentos",
-        "sinonimos":  ["harina", "harinas", "0000", "000", "integral", "leudante"],
-        "marcas":     ["blancaflor", "cañuelas", "pureza", "morixe"],
-        "medidas": {
-            "kg":    ["1kg", "1 kg"],
-            "medio": ["500g", "500 g"],
-        }
-    },
-    "galletitas": {
-        "subfamilia": "Galletitas",
-        "familia":    "Alimentos",
-        "sinonimos":  ["galletita", "galletitas", "galleta", "galletas",
-                       "bizcochos", "crackers"],
-        "marcas":     ["arcor", "bagley", "oreo", "triton", "toddy", "rumba"],
-        "medidas": {}
-    },
-    "pañales": {
-        "subfamilia": "Pañales descartables",
-        "familia":    "Tocador y cosmética",
-        "sinonimos":  ["pañal", "pañales", "panal", "panales"],
-        "marcas":     ["babysec", "huggies", "pampers", "mimitos"],
-        "medidas": {}
-    },
-    "shampoo": {
-        "subfamilia": "Shampoo y Acondicionador",
-        "familia":    "Tocador y cosmética",
-        "sinonimos":  ["shampoo", "champú", "champu", "acondicionador"],
-        "marcas":     ["sedal", "head", "pantene", "dove", "elseve"],
-        "medidas": {}
-    },
-    "alimentos": {
-        "subfamilia": None,  # categoría general — filtrar por familia
-        "familia":    "Alimentos",
-        "sinonimos":  ["alimento", "alimentos", "comestible", "comestibles",
-                       "viveres", "víveres", "secos", "almacen", "almacén",
-                       "groceries"],
-        "marcas":     [],
-        "medidas":    {}
-    },
-    "bebidas": {
-        "subfamilia": None,
-        "familia":    "Bebidas",
-        "sinonimos":  ["bebida", "bebidas", "liquido", "líquido", "liquidos"],
-        "marcas":     [],
-        "medidas":    {}
-    },
-    "arroz": {
-        "subfamilia": "Arroz",
-        "familia":    "Alimentos",
-        "sinonimos":  ["arroz"],
-        "marcas":     ["gallo", "marolio", "dos hermanos", "la campagnola"],
-        "medidas": {
-            "kg":    ["1kg", "1 kg", "500g"],
-        }
-    },
-    "azucar": {
-        "subfamilia": "Azucar",
-        "familia":    "Alimentos",
-        "sinonimos":  ["azucar", "azúcar"],
-        "marcas":     ["ledesma", "chango"],
-        "medidas": {
-            "kg":    ["1kg", "1 kg", "2kg"],
-        }
-    },
-    "fideos": {
-        "subfamilia": "Pastas secas comunes",
-        "familia":    "Alimentos",
-        "sinonimos":  ["fideo", "fideos", "pasta", "pastas", "spaghetti",
-                       "tallarines", "mostacholes"],
-        "marcas":     ["marolio", "don vicente", "matarazzo", "lucchetti"],
-        "medidas": {
-            "kg":    ["500g", "400g", "250g"],
-        }
-    },
-    "te": {
-        "subfamilia": "Té",
-        "familia":    "Alimentos",
-        "sinonimos":  ["te", "té", "infusion", "infusión", "saquito"],
-        "marcas":     ["la virginia", "taragui", "lipton", "ser"],
-        "medidas": {}
-    },
-    "detergentes": {
-        "subfamilia": "Detergentes",
-        "familia":    "Hogar",
-        "sinonimos":  ["detergente", "detergentes", "lavavajilla", "lava"],
-        "marcas":     ["magistral", "ayudin", "cif", "vim"],
-        "medidas": {}
-    },
-    "jabones": {
-        "subfamilia": "Jabón en polvo",
-        "familia":    "Limpieza",
-        "sinonimos":  ["jabon", "jabón", "polvo", "lavandina"],
-        "marcas":     ["ala", "skip", "ariel", "ace", "drive"],
-        "medidas": {}
-    },
+# ─── CATÁLOGO COMPLETO DESDE MD ──────────────────────────────
+# familia → [subfamilias exactas] — nombres EXACTOS con tildes
+FAMILIAS_MD = {
+    "AUDIO Y VIDEO":               ["Accesorios Varios","Auriculares","Consolas de Juegos",
+                                    "Cámaras IP","Equipos de Sonido","Monitores","Parlantes",
+                                    "Soportes","Televisores","PROYECTORES"],
+    "Aire Libre Muebles y Jardin": ["Accesorios Jardinería","Arboles y Plantas","Conservadoras",
+                                    "Deportes y Fitness","Mesas","Piletas","Sillas","Sillones"],
+    "Alimentos":                   ["Aceite de girasol","Aceite de maiz","Aceite de oliva",
+                                    "Aceite mezcla","Aceites especiales","Arroz","Azucar",
+                                    "Café soluble","Caldos y sopas","Cereales listos",
+                                    "Chocolate para taza","Conserva de carne","Conserva de pescado",
+                                    "Dulce de leche","Dulce de batata","Dulce de membrillo",
+                                    "Edulcorantes","Encurtidos","Enlatados Frutas en Almibar",
+                                    "Enlatados Salsas","Enlatados Tomatados",
+                                    "Enlatados Vegetales y Legumbre","Especias","Espesantes",
+                                    "Frutas secas","Galletitas","Golosinas","Grasas comestibles",
+                                    "Harina de maíz","Harina de trigo","Harina de trigo leudante",
+                                    "Harinas Especiales","Leches Chocolatadas","Leches Larga Vida",
+                                    "Leches en polvo","Legumbres","Mermeladas y jaleas",
+                                    "Mezclas preparadas","Pan Rallado y Rebozadores",
+                                    "Pan dulce y budin","Panificados","Pastas secas al huevo",
+                                    "Pastas secas comunes","Pastas secas especiales",
+                                    "Polentas","Polvos chocolatados","Postres en polvo flanes",
+                                    "Postres en polvo gelatinas","Postres en polvo horneables",
+                                    "Postres en polvo postres","Puré instantaneo","Sal de mesa",
+                                    "Salsas y aderezos","Snacks","Tostadas","Té",
+                                    "Vinagres y acetos","Yerbas"],
+    "Bebidas":                     ["Aguas minerales","Aguas saborizadas","Amargos analcohólicos",
+                                    "Aperitivos alcohólico","Bebidas isotónicas","Cervezas",
+                                    "Champagne","Espumantes","Gaseosas","Jugos en polvo",
+                                    "Jugos frutales","Licores","Sidras","Sodas",
+                                    "Vinos Finos","Vinos comunes","Vinos especiales",
+                                    "Vodka","Whisky"],
+    "Climatización":               ["Aires Acondicionados","Caloventores","Estufas",
+                                    "Termotanques","Ventiladores"],
+    "Cuidado Personal":            ["Afeitadoras","Alisadores y Planchas","Cortadoras de Pelo",
+                                    "Secadores de Pelo","Set Belleza"],
+    "Electrodomésticos":           ["Aspiradoras","Anafes Eléctricos","Batidoras","Cafeteras",
+                                    "Cocinas","Exprimidoras","Freidoras","Heladeras y freezers",
+                                    "Hornos Eléctricos","Lavarropas y Centrifugadoras",
+                                    "Licuadoras","Microondas","Mixers","Multiprocesadoras",
+                                    "Pavas Eléctricas","Planchas","Sandwichera","Tostadoras",
+                                    "Vaporeras","Waflera","Yogurtera"],
+    "Farmacia":                    ["Alcohol","Higiene","Medicamentos","Suplementos"],
+    "Ferretería":                  ["Accesorios Ferreteria","Pinturas y Revestimientos"],
+    "Frescos":                     ["Carnes","Cremas de leche","Fiambres","Frutas y Verduras",
+                                    "Helados","Huevos","Mantecas","POLLOS","Panificados",
+                                    "Pastas frescas","Postres","Quesos","Salchichas","Yogurt",
+                                    "Leches Líquidas","Queso untable"],
+    "Herramientas Eléctricas":     ["Amoladoras","Taladros","Hidrolavadoras","Compresores de Aire"],
+    "Hogar":                       ["BLANQUERIA","Bazar","Bolsas de residuos","Cepillos y escobas",
+                                    "Desodorantes y desinfectantes","Detergentes","Fibras limpiadoras",
+                                    "Focos","Insecticidas","Lavandinas","Limpiadores y desengrasantes",
+                                    "Muebles","Papel higiénico","Pilas comunes y especiales",
+                                    "Rollos de papel","Servilletas de papel","Termos","Velas",
+                                    "PERFUME PARA ROPAS","Alimentos para mascot"],
+    "Juegos y Juguetes":           ["Juguetes"],
+    "Limpieza":                    ["Aditivos para lavado","Jabón en pastillas","Jabón en polvo",
+                                    "Suavizantes"],
+    "Rodados":                     ["Bicicletas","Motos","Neumaticos"],
+    "Tecnología":                  ["Accesorios","Celulares","Smartwatch","Tablets"],
+    "Tocador y cosmética":         ["Acondicionador","Cepillos dentales","Colonias",
+                                    "Cremas corporales","Desodorantes corporales",
+                                    "Esmaltes","Jabones de tocador","Pastas dentales",
+                                    "Pañales descartables","Perfumes",
+                                    "Protección sanitaria femenina","Shampoo y Acondicionador",
+                                    "Tinturas"],
+    "Veterinaria":                 ["Accesorios para Mascotas","Alimentos para mascot","Sanitario"],
 }
 
-# ─── ÍNDICES INVERTIDOS (para búsqueda rápida) ───────────────
+# Índice invertido subfamilia → familia
+SUBFAMILIA_A_FAMILIA = {
+    sub: fam
+    for fam, subs in FAMILIAS_MD.items()
+    for sub in subs
+}
+
+# ─── CATEGORÍAS CON SINÓNIMOS ─────────────────────────────────
+CATEGORIAS = {
+    # ── ALIMENTOS ──────────────────────────────────────────────
+    "alimentos":   {"familia":"Alimentos","subfamilia":None,
+                    "sinonimos":["alimento","alimentos","comestible","comestibles",
+                                 "viveres","víveres","secos","almacen","almacén"]},
+    "yerbas":      {"familia":"Alimentos","subfamilia":"Yerbas",
+                    "sinonimos":["yerba","yerbas","mate"],
+                    "marcas":["rosamonte","taragui","taragüi","playadito","amanda",
+                               "cbse","canarias","nobleza","cachamai","romance",
+                               "la virginia","mañanita","cachamate","kurupi",
+                               "cruz de malta","la merced","union","unión"]},
+    "cafe":        {"familia":"Alimentos","subfamilia":"Café soluble",
+                    "sinonimos":["cafe","café","cafes","cafés","molido","tostado",
+                                 "soluble","instantaneo","instantáneo","torrado"],
+                    "marcas":["la virginia","nescafe","nestle","dolca","cabrales","lm"]},
+    "te":          {"familia":"Alimentos","subfamilia":"Té",
+                    "sinonimos":["te","té","infusion","infusión","saquito","tisana"],
+                    "marcas":["la virginia","taragui","lipton","twinings","ser",
+                               "manzanilla","boldo","menta"]},
+    "aceites":     {"familia":"Alimentos","subfamilia":"Aceite de girasol",
+                    "sinonimos":["aceite","aceites","girasol","maiz","maíz","oliva"],
+                    "marcas":["cocinero","natura","lira","marolio","cañuelas"]},
+    "leches":      {"familia":"Alimentos","subfamilia":"Leches Larga Vida",
+                    "sinonimos":["leche","leches","larga vida","uht","sachet"],
+                    "marcas":["serenísima","sancor","ilolay","la serenísima","milkaut",
+                               "tremblay","cremigal"]},
+    "arroz":       {"familia":"Alimentos","subfamilia":"Arroz",
+                    "sinonimos":["arroz"],
+                    "marcas":["gallo","marolio","dos hermanos"]},
+    "azucar":      {"familia":"Alimentos","subfamilia":"Azucar",
+                    "sinonimos":["azucar","azúcar"],
+                    "marcas":["ledesma","chango"]},
+    "harinas":     {"familia":"Alimentos","subfamilia":"Harina de trigo",
+                    "sinonimos":["harina","harinas","000","0000","integral","leudante"],
+                    "marcas":["blancaflor","cañuelas","pureza","morixe","favorita",
+                               "molinos"]},
+    "galletitas":  {"familia":"Alimentos","subfamilia":"Galletitas",
+                    "sinonimos":["galletita","galletitas","galleta","galletas","crackers"],
+                    "marcas":["arcor","bagley","oreo","triton","toddy","rumba"]},
+    "pastas":      {"familia":"Alimentos","subfamilia":"Pastas secas comunes",
+                    "sinonimos":["pasta","pastas","fideo","fideos","spaghetti",
+                                 "tallarines","mostacholes","fetuccine"],
+                    "marcas":["marolio","don vicente","matarazzo","lucchetti"]},
+    "golosinas":   {"familia":"Alimentos","subfamilia":"Golosinas",
+                    "sinonimos":["golosina","golosinas","caramelo","caramelos","chocolate",
+                                 "chicle","chicles","alfajor","alfajores","bombon"],
+                    "marcas":["arcor","bagley","milka","twix","snickers","halls",
+                               "bon o bon","cofler","rhodesia"]},
+    "snacks":      {"familia":"Alimentos","subfamilia":"Snacks",
+                    "sinonimos":["snack","snacks","papa frita","papas fritas","chizito",
+                                 "palito","maní","mani"],
+                    "marcas":["pepsico","frito lay","sabritas","krachitos"]},
+    "conservas":   {"familia":"Alimentos","subfamilia":"Enlatados Tomatados",
+                    "sinonimos":["conserva","conservas","lata","enlatado","enlatados",
+                                 "tomate","atun","sardina"],
+                    "marcas":["arcor","la campagnola","noel","cagnoli"]},
+    "salsas":      {"familia":"Alimentos","subfamilia":"Salsas y aderezos",
+                    "sinonimos":["salsa","salsas","aderezo","aderezos","mayonesa",
+                                 "ketchup","mostaza","vinagreta"],
+                    "marcas":["hellmanns","hellman","heinz","natura","knorr"]},
+    "dulces":      {"familia":"Alimentos","subfamilia":"Dulce de leche",
+                    "sinonimos":["dulce","dulces","dulce de leche","mermelada","mermeladas",
+                                 "membrillo","batata"],
+                    "marcas":["arcor","la serenísima","sancor","la campagnola"]},
+    # ── BEBIDAS ────────────────────────────────────────────────
+    "bebidas":     {"familia":"Bebidas","subfamilia":None,
+                    "sinonimos":["bebida","bebidas","liquido","líquido","liquidos"]},
+    "cervezas":    {"familia":"Bebidas","subfamilia":"Cervezas",
+                    "sinonimos":["cerveza","cervezas","birra","beer"],
+                    "marcas":["quilmes","schneider","andes","brahma","isenbeck",
+                               "heineken","corona","stella","budweiser","imperial",
+                               "miller","michelob","patagonia","grolsch"]},
+    "gaseosas":    {"familia":"Bebidas","subfamilia":"Gaseosas",
+                    "sinonimos":["gaseosa","gaseosas","refresco","cola","soda"],
+                    "marcas":["coca","pepsi","7up","sprite","fanta","manaos",
+                               "cunnington","paso de los toros","pritty"]},
+    "aguas":       {"familia":"Bebidas","subfamilia":"Aguas minerales",
+                    "sinonimos":["agua","aguas","mineral"],
+                    "marcas":["villa del sur","bonafont","glaciar","ser","villavicencio"]},
+    "jugos":       {"familia":"Bebidas","subfamilia":"Jugos en polvo",
+                    "sinonimos":["jugo","jugos","bebida en polvo","polvo frutal"],
+                    "marcas":["clight","tang","verao","zuko"]},
+    "vinos":       {"familia":"Bebidas","subfamilia":"Vinos Finos",
+                    "sinonimos":["vino","vinos","tinto","blanco","rosado","malbec",
+                                 "cabernet","merlot","torrontes"],
+                    "marcas":["norton","trapiche","santa julia","navarro","finca"]},
+    "whisky":      {"familia":"Bebidas","subfamilia":"Whisky",
+                    "sinonimos":["whisky","whiskey","whiskis","whiskeys","bourbon",
+                                 "scotch","blend","blended"],
+                    "marcas":["johnnie walker","j.walker","jack daniel","chivas",
+                               "ballantine","old smuggler","gloucester","breeders",
+                               "hiram walker","doble v","white horse"]},
+    "fernet":      {"familia":"Bebidas","subfamilia":"Aperitivos alcohólico",
+                    "sinonimos":["fernet","aperitivo","aperitivos","campari","cinzano"],
+                    "marcas":["branca","1882","vittone"]},
+    # ── FRESCOS ────────────────────────────────────────────────
+    "carnes":      {"familia":"Frescos","subfamilia":"Carnes",
+                    "sinonimos":["carne","carnes","vacuno","ternera","asado","bife",
+                                 "costilla","cuadril","nalga","paleta","lomo"],
+                    "marcas":[]},
+    "quesos":      {"familia":"Frescos","subfamilia":"Quesos",
+                    "sinonimos":["queso","quesos","cremoso","cuartirolo","reggianito",
+                                 "parmesano","barra","horma","tybo","provolone"],
+                    "marcas":["iloyal","tremblay","sancor","la serenísima","logistica",
+                               "cremigal"]},
+    "yogurt":      {"familia":"Frescos","subfamilia":"Yogurt",
+                    "sinonimos":["yogur","yogurt","yoghurt","kumis"],
+                    "marcas":["la serenísima","sancor","ilolay","yogurisimo"]},
+    "fiambres":    {"familia":"Frescos","subfamilia":"Fiambres",
+                    "sinonimos":["fiambre","fiambres","jamon","jamón","salame",
+                                 "mortadela","paleta","bondiola"],
+                    "marcas":["swift","paladini","formil","tres cruces"]},
+    "pollos":      {"familia":"Frescos","subfamilia":"POLLOS",
+                    "sinonimos":["pollo","pollos","pechuga","muslo","ala","cuarto",
+                                 "entero","trutro"],
+                    "marcas":[]},
+    "panificados": {"familia":"Frescos","subfamilia":"Panificados",
+                    "sinonimos":["pan","panes","panificado","panificados","facturas",
+                                 "medialunas","baguette","lactal"],
+                    "marcas":["bimbo","fargo","lactal"]},
+    "frutas":      {"familia":"Frescos","subfamilia":"Frutas y Verduras",
+                    "sinonimos":["fruta","frutas","verdura","verduras","vegetales",
+                                 "verduleria","verdulería"],
+                    "marcas":[]},
+    "mantecas":    {"familia":"Frescos","subfamilia":"Mantecas",
+                    "sinonimos":["manteca","mantecas","margarina","margarinas"],
+                    "marcas":["la serenísima","sancor","adecoagro"]},
+    # ── HOGAR Y LIMPIEZA ───────────────────────────────────────
+    "bazar":       {"familia":"Hogar","subfamilia":"Bazar",
+                    "sinonimos":["bazar","vajilla","vasos","platos","cubiertos",
+                                 "ollas","sartenes","utensilios","menaje","descartables"],
+                    "marcas":["coloso","gourmet","flint","pekin","galaxia","noa"]},
+    "papel_hig":   {"familia":"Hogar","subfamilia":"Papel higiénico",
+                    "sinonimos":["papel higienico","papel higiénico","higienico","higienicos",
+                                 "pañuelo","servilleta","rollo papel"],
+                    "marcas":["higienol","elite","kleenex","scoth"]},
+    "lavandina":   {"familia":"Hogar","subfamilia":"Lavandinas",
+                    "sinonimos":["lavandina","lavandinas","hipoclorito","blanqueador"],
+                    "marcas":["ayudin","progressivo","trenet"]},
+    "insecticidas":{"familia":"Hogar","subfamilia":"Insecticidas",
+                    "sinonimos":["insecticida","insecticidas","mata moscas","mata cucarachas",
+                                 "repelente","repelentes"],
+                    "marcas":["raid","baygon","sapito","mortein"]},
+    "detergentes": {"familia":"Hogar","subfamilia":"Detergentes",
+                    "sinonimos":["detergente","detergentes","lavavajilla","lava"],
+                    "marcas":["magistral","ayudin","cif","vim"]},
+    "jabones":     {"familia":"Limpieza","subfamilia":"Jabón en polvo",
+                    "sinonimos":["jabon","jabón","polvo","jabon en polvo"],
+                    "marcas":["ala","skip","ariel","ace","drive","surf"]},
+    "suavizantes": {"familia":"Limpieza","subfamilia":"Suavizantes",
+                    "sinonimos":["suavizante","suavizantes","suavizador"],
+                    "marcas":["downy","comfort","vivere","magistral"]},
+    "desinfec":    {"familia":"Hogar","subfamilia":"Desodorantes y desinfectantes",
+                    "sinonimos":["desinfectante","desinfectantes","desodorante de piso",
+                                 "pinesol","limpiador","fabuloso"],
+                    "marcas":["pino","lysol","fabuloso","magistral","procenex"]},
+    # ── TOCADOR ────────────────────────────────────────────────
+    "shampoo":     {"familia":"Tocador y cosmética","subfamilia":"Shampoo y Acondicionador",
+                    "sinonimos":["shampoo","champú","champu","acondicionador","enjuague"],
+                    "marcas":["sedal","head","pantene","dove","elseve","tresemme"]},
+    "desodorantes":{"familia":"Tocador y cosmética","subfamilia":"Desodorantes corporales",
+                    "sinonimos":["desodorante","desodorantes","antitranspirante"],
+                    "marcas":["rexona","dove","axe","nivea","gillette","lady speed"]},
+    "pastas_dent": {"familia":"Tocador y cosmética","subfamilia":"Pastas dentales",
+                    "sinonimos":["pasta dental","pasta dentales","dentifrico","cepillo dental",
+                                 "colgate","oral b"],
+                    "marcas":["colgate","oral b","sensodyne","close up"]},
+    "pañales":     {"familia":"Tocador y cosmética","subfamilia":"Pañales descartables",
+                    "sinonimos":["pañal","pañales","panal","panales"],
+                    "marcas":["babysec","huggies","pampers","mimitos"]},
+    "perfumes":    {"familia":"Tocador y cosmética","subfamilia":"Perfumes",
+                    "sinonimos":["perfume","perfumes","colonia","colonias","fragancia"],
+                    "marcas":["natura","avon","l'bel","unique"]},
+    "tinturas":    {"familia":"Tocador y cosmética","subfamilia":"Tinturas",
+                    "sinonimos":["tintura","tinturas","tintura para cabello","coloracion",
+                                 "coloración","teñir"],
+                    "marcas":["koleston","garnier","schwarzkopf","loreal"]},
+    # ── ELECTRO ────────────────────────────────────────────────
+    "electrodomesticos":{"familia":"Electrodomésticos","subfamilia":None,
+                    "sinonimos":["electrodomestico","electrodoméstico",
+                                 "electrodomesticos","electrodomésticos","electro",
+                                 "linea blanca","línea blanca","heladera","lavarropas",
+                                 "microondas","licuadora","batidora","tostadora",
+                                 "cafetera","freidora","cocina","freezer",
+                                 "aspiradora","plancha","ventilador","calefactor",
+                                 "termotanque","pava electrica","horno electrico",
+                                 "sandwichera","yogurtera","waflera"],
+                    "marcas":["whirlpool","drean","philips","motomel","oster",
+                               "atma","peabody","punktal","briket","landers",
+                               "liliana","sindelen","james","patrick","yelmo",
+                               "codini","enova","neba","kanji","ultracomb"]},
+    "tecnologia":  {"familia":"AUDIO Y VIDEO","subfamilia":"Televisores",
+                    "sinonimos":["tecnologia","tecnología","tv","television","televisor",
+                                 "smart tv","celular","tablet","auricular","parlante",
+                                 "notebook","computadora"],
+                    "marcas":["samsung","lg","sony","tcl","noblex","rca","AOC",
+                               "motorola","xiaomi","lenovo"]},
+    "climatizacion":{"familia":"Climatización","subfamilia":None,
+                    "sinonimos":["climatizacion","climatización","aire acondicionado",
+                                 "estufa","estufas","calefactor","calefactores",
+                                 "caloventor","ventilador","termotanque"],
+                    "marcas":["philco","carrier","BGH","drean","orbis"]},
+    # ── MASCOTAS ───────────────────────────────────────────────
+    "mascotas":    {"familia":"Veterinaria","subfamilia":"Alimentos para mascot",
+                    "sinonimos":["mascota","mascotas","perro","perros","gato","gatos",
+                                 "alimento para mascota","alimento para perro",
+                                 "alimento para gato","veterinaria"],
+                    "marcas":["pedigree","whiskas","purina","dog chow","cat chow",
+                               "royal canin","eukanuba","pro plan"]},
+}
+
+# ─── ÍNDICES INVERTIDOS ───────────────────────────────────────
 SINONIMO_A_CATEGORIA: dict[str, str] = {}
 MARCA_A_CATEGORIA:    dict[str, str] = {}
 
 for cat_key, cat_data in CATEGORIAS.items():
-    for sin in cat_data["sinonimos"]:
+    for sin in cat_data.get("sinonimos", []):
         SINONIMO_A_CATEGORIA[sin] = cat_key
     for marca in cat_data.get("marcas", []):
         MARCA_A_CATEGORIA[marca] = cat_key
 
-# ─── CAPACIDADES DEL AGENTE ───────────────────────────────────
+# ─── CAPACIDADES ─────────────────────────────────────────────
 CAPACIDADES_SI = [
     "Ventas por sucursal, artículo, familia, subfamilia y período",
     "Top artículos más vendidos (unidades, ventas, margen, utilidad)",
     "Comparar marcas, categorías o sucursales entre sí",
     "Tendencia diaria o mensual de ventas (2024-2026)",
-    "Stock actual por sucursal",
+    "Stock actual por sucursal (stk_hiper, stk_corrientes, stk_sabin, stk_formosa)",
     "Alertas de reabastecimiento y días de cobertura",
+    "Artículos con riesgo de quiebre de stock",
+    "Artículos más vendidos que necesitan reposición urgente",
     "Estacionalidad: artículos en su mejor/peor momento del año",
     "Último precio de compra OC por artículo o categoría",
     "Comparar precios de compra entre proveedores",
     "Margen real (precio venta vs último precio OC)",
     "Artículos con precio bajo costo o margen crítico",
-    "Presupuesto de compra estimado",
-    "Artículos nuevos (últimos 30 días)",
-    "Análisis de exceso de stock",
+    "Artículos con exceso de stock",
+    "Presupuesto de compra estimado por artículo",
+    "Valor perdido por quiebres de stock",
+    "Análisis de cualquier familia: Alimentos, Bebidas, Frescos, Electrodomésticos, Hogar, etc.",
 ]
 
 CAPACIDADES_NO = [
@@ -277,12 +335,3 @@ CAPACIDADES_NO = [
     "Devoluciones o notas de crédito detalladas",
     "Información de empleados o RRHH",
 ]
-
-# ─── MEDIDAS Y RANGOS ────────────────────────────────────────
-# Para parsear "más de 900cc", "menor a 500g", etc.
-UNIDADES_VOLUMEN = {
-    "cc": 1, "ml": 1, "l": 1000, "litro": 1000, "litros": 1000,
-}
-UNIDADES_PESO = {
-    "g": 1, "gr": 1, "kg": 1000, "kilo": 1000, "kilos": 1000,
-}

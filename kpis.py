@@ -14,6 +14,26 @@ from config import T_TICKETS, T_ALERT
 
 
 @st.cache_data(ttl=600)
+def cargar_kpis_alertas() -> dict:
+    """KPIs de alertas globales del sistema — siempre visibles."""
+    q = """
+        SELECT
+            COUNT(*) AS total_articulos,
+            SUM(CASE WHEN alerta_reabastecer = 'Sí' AND dias_cobertura = 0  THEN 1 ELSE 0 END) AS sin_stock,
+            SUM(CASE WHEN alerta_reabastecer = 'Sí' AND dias_cobertura <= 3 AND dias_cobertura > 0 THEN 1 ELSE 0 END) AS criticos,
+            SUM(CASE WHEN alerta_reabastecer = 'Sí' AND dias_cobertura <= 7 AND dias_cobertura > 3 THEN 1 ELSE 0 END) AS urgentes,
+            SUM(CASE WHEN exceso_STK > 0 THEN 1 ELSE 0 END) AS exceso_stock,
+            ROUND(SUM(valor_perdido_TOTAL)/1e6, 1) AS valor_perdido_m,
+            ROUND(SUM(PRESUPUESTO)/1e6, 1) AS presupuesto_m
+        FROM my_db.result_final_alert_all
+    """
+    try:
+        return get_con().execute(q).df().iloc[0].to_dict()
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=600)
 def cargar_kpis_header() -> dict:
     """KPIs del mes actual vs mes anterior para el header."""
     mes_actual = date.today().strftime("%Y-%m")
