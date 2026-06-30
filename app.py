@@ -469,39 +469,23 @@ with col_chat:
             with col_si:
                 if st.button("✅ Sí, ejecutar", width="stretch",
                              key="btn_confirmar"):
-                    with st.chat_message("assistant"):
-                        with st.spinner("🤖 Consultando datos..."):
-                            t0 = time.time()
-                            try:
-                                respuesta, df_r, modo = procesar(
-                                    pregunta_pend, st.session_state.historial)
-                            except Exception as e:
-                                respuesta, df_r, modo = f"❌ Error: {e}", None, "error"
-                            t_total = time.time() - t0
+                    with st.spinner("🤖 Consultando datos..."):
+                        t0 = time.time()
+                        try:
+                            respuesta, df_r, modo = procesar(
+                                pregunta_pend, st.session_state.historial)
+                        except Exception as e:
+                            respuesta, df_r, modo = f"❌ Error: {e}", None, "error"
+                        t_total = time.time() - t0
 
-                        iconos = {"template":"⚡","sql_libre":"🔧",
-                                  "sql_retry":"🔄","error_sql":"❌","sql_vacio":"🔧"}
-                        icono = iconos.get(modo, "🔧")
-                        st.markdown(
-                            f'<span class="skill-badge">{icono} {modo}</span>'
-                            f'<span class="time-badge">⏱ {t_total:.1f}s</span>',
-                            unsafe_allow_html=True)
-                        st.markdown(respuesta)
-
-                        if df_r is not None and not df_r.empty:
-                            fig = grafico_auto(df_r, pregunta_pend)
-                            if fig:
-                                fig.update_layout(
-                                    height=340,
-                                    margin=dict(l=0,r=0,t=30,b=0),
-                                    plot_bgcolor="rgba(0,0,0,0)",
-                                    paper_bgcolor="rgba(0,0,0,0)",
-                                    font=dict(color="#1a1a2e", size=10))
-                                st.plotly_chart(
-                                    fig,
-                                    key=f"chart_conf_{int(time.time()*1000)}",
-                                    width="stretch",
-                                    config={"displayModeBar": False})
+                    iconos = {"template":"⚡","sql_libre":"🔧",
+                              "sql_retry":"🔄","error_sql":"❌","sql_vacio":"🔧"}
+                    icono = iconos.get(modo, "🔧")
+                    respuesta_completa = (
+                        f'<span class="skill-badge">{icono} {modo}</span>'
+                        f'<span class="time-badge">⏱ {t_total:.1f}s</span>\n\n'
+                        f'{respuesta}'
+                    )
 
                     df_key = f"df_{len(st.session_state.messages)}"
                     if df_r is not None and not df_r.empty:
@@ -509,7 +493,7 @@ with col_chat:
                             st.session_state["dfs_guardados"] = {}
                         st.session_state["dfs_guardados"][df_key] = df_r
                     st.session_state.messages.append({
-                        "role": "assistant", "content": respuesta,
+                        "role": "assistant", "content": respuesta_completa,
                         "tiene_grafico": df_r is not None and not df_r.empty,
                         "df_key": df_key if df_r is not None and not df_r.empty else None,
                         "pregunta": pregunta_pend
@@ -525,6 +509,7 @@ with col_chat:
                     guardar_historial(pregunta_pend, respuesta, modo, t_total)
                     enviar_telegram(pregunta_pend, respuesta, modo, t_total,
                                     usuario=st.session_state.get("usuario_actual",""))
+                    st.rerun()
 
             with col_no:
                 if st.button("✏️ Corregir pregunta", width="stretch",
@@ -562,19 +547,18 @@ with col_chat:
             st.session_state.historial.append({"role":"assistant","content":respuesta_no})
             st.session_state.interpretacion_pendiente = None
             st.session_state.pregunta_pendiente = ""
-
-            if st.button("✏️ Hacer otra pregunta", key="btn_otra"):
-                st.rerun()
+            st.rerun()
 
     # ── HISTORIAL DEL CHAT ───────────────────────────────────
     for i, msg in enumerate(st.session_state.messages):
         with st.chat_message(msg["role"]):
-            if msg.get("tiene_grafico") and st.session_state.ultimo_df is not None:
-                fig = grafico_auto(
-                    st.session_state.ultimo_df,
-                    msg.get("pregunta", "")
-                )
-                if fig and i == len(st.session_state.messages) - 1:
+            st.markdown(msg["content"], unsafe_allow_html=True)
+            if (msg.get("tiene_grafico")
+                    and msg.get("df_key")
+                    and msg["df_key"] in st.session_state.get("dfs_guardados", {})):
+                df_msg = st.session_state["dfs_guardados"][msg["df_key"]]
+                fig = grafico_auto(df_msg, msg.get("pregunta",""))
+                if fig:
                     fig.update_layout(height=300,
                         margin=dict(l=0,r=0,t=30,b=0),
                         plot_bgcolor="rgba(0,0,0,0)",
@@ -583,7 +567,6 @@ with col_chat:
                     st.plotly_chart(fig, key=f"hist_{i}",
                                     width="stretch",
                                     config={"displayModeBar":False})
-            st.markdown(msg["content"])
 
     # ── INPUT ────────────────────────────────────────────────
     st.markdown("##### 💬 Consultá al agente de datos")
@@ -646,5 +629,3 @@ with col_panel:
             st.plotly_chart(fig, key="panel_mens",
                             width="stretch",
                             config={"displayModeBar":False})
-
-
