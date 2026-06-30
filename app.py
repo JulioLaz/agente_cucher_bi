@@ -445,8 +445,10 @@ with col_chat:
                 st.markdown(
                     f'<div style="background:{color_activa}11;border-left:4px solid {color_activa};'
                     f'border-radius:6px;padding:10px 14px;margin-top:10px;">'
-                    f'<b style="color:{color_activa};">📋 Detalle: {lbl_activa}</b> '
-                    f'<span style="color:#6b7280;font-size:0.8rem;">({len(df_detalle)} artículos)</span>'
+                    f'<b style="color:{color_activa};">📋 Detalle: {lbl_activa}</b>'
+                    f'<span style="color:#6b7280;font-size:0.9rem;">({len(df_detalle)} artículos)</span>'
+                    f'- Las cantidades a abastecer son para 30 días - '
+                    f'<span style="color:{color_activa};"> (los valores negativos representan exceso)</span>'
                     f'</div>', unsafe_allow_html=True)
 
                 if not df_detalle.empty:
