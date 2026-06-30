@@ -335,3 +335,19 @@ CAPACIDADES_NO = [
     "Devoluciones o notas de crédito detalladas",
     "Información de empleados o RRHH",
 ]
+
+# ─── MEDIDAS Y RANGOS ────────────────────────────────────────
+# Para parsear "más de 900cc", "menor a 500g", etc.
+UNIDADES_VOLUMEN = {
+    "cc": 1, "ml": 1, "l": 1000, "litro": 1000, "litros": 1000,
+}
+UNIDADES_PESO = {
+    "g": 1, "gr": 1, "kg": 1000, "kilo": 1000, "kilos": 1000,
+}
+
+# Lista plana de todas las marcas para detección rápida
+MARCAS_DESCRIPCION = list(set(
+    marca
+    for cat in CATEGORIAS.values()
+    for marca in cat.get("marcas", [])
+))
