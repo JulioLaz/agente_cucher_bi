@@ -102,7 +102,7 @@ section[data-testid="stSidebar"] .stSelectbox>div>div{
   margin-left:6px;border:1px solid #166534;}
 
 /* Panel títulos */
-.panel-title{font-size:0.78rem;font-weight:700;color:#f0f4ff !important;
+.panel-title{font-size:0.78rem;font-weight:700;color:#111212 !important;
   text-transform:uppercase;letter-spacing:0.06em;
   margin-bottom:6px;border-bottom:2px solid #d97706;padding-bottom:3px;}
 .panel-azul{background-color:#1a2744;border-radius:12px;padding:14px 12px;}

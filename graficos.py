@@ -192,7 +192,7 @@ def grafico_ventas_sucursal(df: pd.DataFrame) -> go.Figure | None:
                       margin=dict(l=0,r=0,t=10,b=0),
                       plot_bgcolor="rgba(0,0,0,0)",
                       paper_bgcolor="rgba(0,0,0,0)",
-                      font=dict(color="#e2e8f0", size=10),
+                      font=dict(color="#202b3a", size=10),
                       yaxis=dict(showgrid=False, showticklabels=False),
                       xaxis=dict(showgrid=False))
     return fig
@@ -220,11 +220,11 @@ def grafico_utilidad_diaria(df: pd.DataFrame) -> go.Figure | None:
                       margin=dict(l=0,r=0,t=10,b=0),
                       plot_bgcolor="rgba(0,0,0,0)",
                       paper_bgcolor="rgba(0,0,0,0)",
-                      font=dict(color="#e2e8f0", size=9),
+                      font=dict(color="#202f44", size=9),
                       yaxis=dict(showgrid=False, showticklabels=False),
                       xaxis=dict(showgrid=False,
                                  title=dict(text="día",
-                                            font=dict(color="#e2e8f0"))))
+                                            font=dict(color="#263344"))))
     return fig
 
 
@@ -243,7 +243,7 @@ def grafico_utilidad_mensual(df: pd.DataFrame) -> go.Figure | None:
             name=str(int(anio)),
             x=df_a["mes_nom"],
             y=df_a["utilidad_m"],
-            marker_color=COLORES_ANIO.get(int(anio), "#94a3b8"),
+            marker_color=COLORES_ANIO.get(int(anio), "#3f4b5c"),
             text=[f"{v:.2f}M" for v in df_a["utilidad_m"]],
             textposition="outside",
             textfont=dict(size=7),
@@ -253,9 +253,9 @@ def grafico_utilidad_mensual(df: pd.DataFrame) -> go.Figure | None:
         margin=dict(l=0,r=0,t=10,b=0),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0", size=9),
+        font=dict(color="#1c2635", size=9),
         legend=dict(orientation="h", y=1.08, x=0,
-                    font=dict(size=9, color="#e2e8f0"),
+                    font=dict(size=9, color="#233041"),
                     bgcolor="rgba(0,0,0,0)"),
         yaxis=dict(showgrid=True, gridcolor="#2e4a7a",
                    showticklabels=False, zeroline=False),
