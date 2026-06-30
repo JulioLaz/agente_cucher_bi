@@ -152,7 +152,9 @@ def enriquecer(pregunta: str) -> Contexto:
     ctx.pide_stock   = any(x in p for x in [
         "stock", "quiebre", "cobertura", "dias cobertura", "días cobertura",
         "faltante", "disponibilidad", "clasificar", "clasificacion",
-        "clasificación", "necesitan stock", "bajo stock", "sin stock"])
+        "clasificación", "necesitan stock", "bajo stock", "sin stock",
+        "riesgo", "riesgo de quiebre", "pueden faltar", "van a faltar",
+        "quiebre de stock", "reposicion", "reposición", "reabastecer"])
 
     ctx.pide_alerta  = any(x in p for x in [
         "alerta", "alertas", "critico", "crítico", "reponer", "reabastecer",

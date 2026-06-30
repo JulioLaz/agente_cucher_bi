@@ -273,6 +273,63 @@ def tpl_comparar_precio_venta_compra(ctx: Contexto) -> pd.DataFrame | None:
     return df if not df.empty else None
 
 
+def tpl_mas_vendidos_riesgo_quiebre(ctx: Contexto, top_n: int = 20) -> pd.DataFrame | None:
+    """
+    Artículos más vendidos que tienen riesgo de quiebre de stock.
+    Usa result_final_alert_all con alerta_reabastecer = 'Sí' (con tilde).
+    Ordenado por ventas 90d DESC para mostrar los más importantes primero.
+    """
+    filtros = ["alerta_reabastecer = \'Sí\'", "cant_total > 0"]
+
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"familia = \'{ctx.familia}\'")
+    elif ctx.marcas:
+        f_m = " OR ".join(f"LOWER(descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
+        filtros.append(f"({f_m})")
+
+    # Filtro de dias_cobertura según urgencia
+    if ctx.pide_alerta:
+        filtros.append("dias_cobertura <= 7")   # crítico/urgente
+    else:
+        filtros.append("dias_cobertura <= 30")  # riesgo general
+
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT
+            descripcion,
+            familia,
+            subfamilia,
+            TRIM(proveedor)     AS proveedor,
+            cant_total          AS ventas_90d,
+            STK_TOTAL           AS stock_total,
+            dias_cobertura,
+            nivel_riesgo,
+            clase_abc,
+            PRESUPUESTO         AS presupuesto_30d,
+            total_abastecer     AS unidades_a_pedir,
+            valor_perdido_TOTAL AS valor_perdido,
+            CASE
+                WHEN dias_cobertura = 0  THEN '🔴 SIN STOCK'
+                WHEN dias_cobertura <= 3 THEN '🔴 CRÍTICO'
+                WHEN dias_cobertura <= 7 THEN '🟠 URGENTE'
+                WHEN dias_cobertura <= 14 THEN '🟡 BAJO'
+                ELSE '🟡 PRECAUCIÓN'
+            END AS alerta
+        FROM {T_ALERT}
+        {where}
+        ORDER BY cant_total DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template mas_vendidos_riesgo] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
 def tpl_criticos_con_ventas(ctx: Contexto, top_n: int = 20) -> pd.DataFrame | None:
     """
     Artículos críticos de stock cruzados con sus ventas mensuales.
@@ -386,7 +443,20 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
         if df is not None:
             return df
 
-    # 4. Stock
+    # 4. Más vendidos con riesgo de quiebre
+    pide_riesgo = any(x in p_lower for x in [
+        "riesgo de quiebre", "riesgo quiebre", "quiebre de stock",
+        "pueden quedar sin stock", "pueden faltar", "van a faltar",
+        "mas vendidos.*stock", "riesgo.*stock", "stock.*riesgo",
+        "articulos mas vendidos.*stock", "necesitan reposicion",
+        "necesitan reabastecimiento"])
+    if pide_riesgo or (ctx.pide_ranking and ctx.pide_stock):
+        print(f"   [router] → tpl_mas_vendidos_riesgo_quiebre")
+        df = tpl_mas_vendidos_riesgo_quiebre(ctx)
+        if df is not None:
+            return df
+
+    # Stock general
     if ctx.pide_stock:
         print(f"   [router] → tpl_stock_categoria")
         df = tpl_stock_categoria(ctx)

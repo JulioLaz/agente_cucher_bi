@@ -54,7 +54,7 @@ my_db.result_final_alert_all (18K filas — artículos activos 90 días)
   idarticulo BIGINT, descripcion VARCHAR, familia VARCHAR, subfamilia VARCHAR
   cnt_hiper/corrientes/sabin/formosa/express BIGINT ← ventas 90d por sucursal
   stk_hiper/corrientes/sabin/formosa/express/TIROL/central/STK_TOTAL BIGINT
-  nivel_riesgo VARCHAR, alerta_reabastecer VARCHAR
+  nivel_riesgo VARCHAR, alerta_reabastecer VARCHAR  ← valores: 'Sí' (con tilde), 'No', 'Ver' — NUNCA usar 'SI'
   dias_cobertura BIGINT  ← días de stock restante
   ranking_mes BIGINT     ← 1=mejor mes del año, 12=peor
   mes_actual DOUBLE      ← % contribución del mes actual
