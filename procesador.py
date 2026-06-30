@@ -50,7 +50,7 @@ my_db.ultimos_precios (13.6K filas — ÚLTIMO precio OC, SIN filtro de fecha)
   fecha_ultima_oc TIMESTAMP  ← fecha de la OC, NO filtrar por esto
   proveedor_oc VARCHAR
 
-my_db.result_final_alert_all (18K filas — artículos activos 90 días)
+my_db.result_final_alert_all (18.3K filas, 139 columnas — artículos activos 90 días)
   idarticulo BIGINT, descripcion VARCHAR, familia VARCHAR, subfamilia VARCHAR
   cnt_hiper/corrientes/sabin/formosa/express BIGINT ← ventas 90d por sucursal
   stk_hiper/corrientes/sabin/formosa/express/TIROL/central/STK_TOTAL BIGINT
@@ -61,8 +61,16 @@ my_db.result_final_alert_all (18K filas — artículos activos 90 días)
   meses_act_estac BIGINT ← meses activos (< 4 = muy estacional)
   clase_abc VARCHAR, prioridad BIGINT
   PRESUPUESTO BIGINT, total_abastecer BIGINT
-  precio_actual DOUBLE, costo_unit DOUBLE
+  precio_actual DOUBLE, costo_unit DOUBLE  ← margen ticket = (precio_actual-costo_unit)/costo_unit*100
   idarticuloalfa BIGINT  ← equivale a idartalfa para JOINs
+  proveedor VARCHAR, idproveedor BIGINT
+  cant_total BIGINT  ← ventas en unidades últimos 90 días (usar para "más vendidos")
+  exceso_STK BIGINT  ← unidades de exceso de stock (>0 significa sobrestock)
+  precio_bajo_costo BOOLEAN  ← true = se vende por debajo del costo actual (¡pérdida directa!)
+  valor_perdido_TOTAL BIGINT  ← $ perdidos por quiebres de stock (ventas no realizadas)
+  unidades_perdidas_TOTAL BIGINT  ← unidades no vendidas por falta de stock
+  cantidad_predicha DOUBLE, pred_ventas_actual DOUBLE  ← forecast de demanda
+  precio_optimo_ventas DOUBLE  ← precio recomendado por el modelo
 
 === REGLAS CRÍTICAS ===
 
@@ -91,6 +99,32 @@ REGLA 6 — SUCURSALES VENTA PÚBLICA
   IN ('hiper','corrientes','sabin','formosa')
 
 === EJEMPLOS DE QUERIES CORRECTAS ===
+
+-- Valor perdido por quiebres de stock (¿cuánto perdí?):
+SELECT
+    ROUND(SUM(valor_perdido_TOTAL),2) AS valor_perdido_total,
+    SUM(unidades_perdidas_TOTAL) AS unidades_perdidas,
+    COUNT(*) AS articulos_afectados
+FROM my_db.result_final_alert_all
+WHERE valor_perdido_TOTAL > 0;
+
+-- Top artículos con mayor pérdida por quiebre (para accionar):
+SELECT descripcion, familia, proveedor,
+       valor_perdido_TOTAL, unidades_perdidas_TOTAL, dias_cobertura
+FROM my_db.result_final_alert_all
+WHERE valor_perdido_TOTAL > 0
+ORDER BY valor_perdido_TOTAL DESC LIMIT 10;
+
+-- Artículos vendiéndose bajo costo (pérdida directa en cada venta):
+SELECT descripcion, familia, subfamilia, proveedor,
+       precio_actual, costo_unit,
+       ROUND((precio_actual-costo_unit)/costo_unit*100,1) AS margen_ticket_pct,
+       cant_total AS ventas_90d
+FROM my_db.result_final_alert_all
+WHERE precio_bajo_costo = true
+ORDER BY cant_total DESC LIMIT 10;
+
+
 
 -- Cervezas de más de 900cc más vendidas:
 SELECT descripcion, sucursal,

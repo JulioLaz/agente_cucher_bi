@@ -385,6 +385,215 @@ def tpl_criticos_con_ventas(ctx: Contexto, top_n: int = 20) -> pd.DataFrame | No
         return None
     return df if not df.empty else None
 
+
+def tpl_valor_perdido_quiebre(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None:
+    """
+    Valor perdido en $ por quiebres de stock — '¿cuánto perdí este mes?'
+    Usa valor_perdido_TOTAL de result_final_alert_all.
+    """
+    filtros = ["valor_perdido_TOTAL > 0"]
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"familia = \'{ctx.familia}\'")
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
+               valor_perdido_TOTAL  AS valor_perdido,
+               unidades_perdidas_TOTAL AS unidades_perdidas,
+               dias_cobertura, STK_TOTAL AS stock_total,
+               nivel_riesgo
+        FROM {T_ALERT}
+        {where}
+        ORDER BY valor_perdido_TOTAL DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template valor_perdido] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
+def tpl_precio_bajo_costo(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None:
+    """
+    Artículos vendiéndose por debajo del costo actual — pérdida directa por venta.
+    Usa precio_bajo_costo = true de result_final_alert_all.
+    """
+    filtros = ["precio_bajo_costo = true"]
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"familia = \'{ctx.familia}\'")
+    elif ctx.marcas:
+        f_m = " OR ".join(f"LOWER(descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
+        filtros.append(f"({f_m})")
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
+               ROUND(precio_actual,2)  AS precio_venta,
+               ROUND(costo_unit,2)     AS costo_actual,
+               ROUND((precio_actual-costo_unit)/costo_unit*100,1) AS margen_ticket_pct,
+               cant_total AS ventas_90d
+        FROM {T_ALERT}
+        {where}
+        ORDER BY cant_total DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template precio_bajo_costo] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
+
+def tpl_presupuesto_por_proveedor(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None:
+    """
+    Presupuesto de compra de los próximos 30 días agrupado por proveedor.
+    """
+    filtros = ["PRESUPUESTO > 0"]
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"familia = \'{ctx.familia}\'")
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT TRIM(proveedor) AS proveedor,
+               COUNT(*)                       AS articulos,
+               ROUND(SUM(PRESUPUESTO),2)       AS presupuesto_total,
+               ROUND(AVG(dias_cobertura),1)    AS dias_cobertura_prom
+        FROM {T_ALERT}
+        {where}
+        GROUP BY proveedor
+        ORDER BY presupuesto_total DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template presupuesto_proveedor] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
+def tpl_exceso_stock_traslado(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None:
+    """
+    Artículos con exceso de stock, mostrando desbalance entre sucursales
+    para identificar oportunidades de traslado en vez de comprar más.
+    """
+    filtros = ["exceso_STK > 0"]
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"familia = \'{ctx.familia}\'")
+    elif ctx.marcas:
+        f_m = " OR ".join(f"LOWER(descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
+        filtros.append(f"({f_m})")
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT descripcion, familia, subfamilia,
+               exceso_STK AS exceso_stock,
+               stk_hiper, stk_corrientes, stk_sabin, stk_formosa,
+               dias_cobertura
+        FROM {T_ALERT}
+        {where}
+        ORDER BY exceso_STK DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template exceso_traslado] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
+def tpl_alta_venta_bajo_margen(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None:
+    """
+    'Pregunta trampa': productos que generan mucha plata en ventas
+    pero tienen margen real muy bajo (precio venta vs último costo OC).
+    """
+    filtros_t = ["t.precio_unitario > 0"]
+    if ctx.subfamilia:
+        filtros_t.append(f"t.subfamilia = \'{ctx.subfamilia}\'")
+    elif ctx.marcas:
+        f_m = " OR ".join(f"LOWER(t.descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
+        filtros_t.append(f"({f_m})")
+    where_t = "WHERE " + " AND ".join(filtros_t)
+
+    sql = f"""
+        WITH ultimo_precio AS (
+            SELECT t.descripcion, t.idartalfa,
+                   ROUND(t.precio_unitario,2) AS precio_venta,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY t.descripcion
+                       ORDER BY CAST(t.fecha_comprobante AS DATE) DESC
+                   ) AS rn
+            FROM {T_TICKETS} t
+            {where_t}
+        ),
+        ventas_tot AS (
+            SELECT idartalfa, descripcion,
+                   ROUND(SUM(precio_total),2) AS ventas_totales,
+                   ROUND(SUM(cantidad_total),0) AS unidades
+            FROM {T_TICKETS}
+            GROUP BY idartalfa, descripcion
+        )
+        SELECT vt.descripcion, vt.ventas_totales, vt.unidades,
+               up.precio_venta,
+               ROUND(op.ultimo_precio_compra,2) AS precio_compra,
+               ROUND((up.precio_venta-op.ultimo_precio_compra)
+                     /NULLIF(op.ultimo_precio_compra,0)*100,1) AS margen_real_pct
+        FROM ventas_tot vt
+        JOIN ultimo_precio up ON vt.idartalfa = up.idartalfa AND up.rn = 1
+        JOIN {T_PRECIOS} op ON vt.idartalfa = op.idartalfa
+        WHERE op.ultimo_precio_compra > 0
+        ORDER BY vt.ventas_totales DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template alta_venta_bajo_margen] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
+
+def tpl_impacto_apertura_sabin(ctx: Contexto) -> pd.DataFrame | None:
+    """
+    Compara ventas promedio diarias de Hiper antes/después de la apertura
+    de Sabin (6-jun-2026) para medir canibalización vs mercado nuevo.
+    """
+    sql = f"""
+        WITH datos AS (
+            SELECT
+                sucursal,
+                CASE WHEN CAST(fecha_comprobante AS DATE) < \'2026-06-06\'
+                     THEN \'antes_sabin\' ELSE \'despues_sabin\' END AS periodo,
+                CAST(fecha_comprobante AS DATE) AS fecha,
+                precio_total
+            FROM {T_TICKETS}
+            WHERE sucursal IN (\'hiper\',\'sabin\',\'corrientes\')
+              AND CAST(fecha_comprobante AS DATE) BETWEEN \'2026-05-01\' AND CURRENT_DATE
+        )
+        SELECT sucursal, periodo,
+               ROUND(SUM(precio_total)/1e6,1)                       AS ventas_totales_m,
+               COUNT(DISTINCT fecha)                                AS dias,
+               ROUND(SUM(precio_total)/1e6/COUNT(DISTINCT fecha),2) AS venta_promedio_diaria_m
+        FROM datos
+        GROUP BY sucursal, periodo
+        ORDER BY sucursal, periodo
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template impacto_sabin] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
 # ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
@@ -410,6 +619,71 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     print(f"   [template] cat={ctx.categoria_key!r} marcas={ctx.marcas} "
           f"precio={ctx.pide_precio} comparar={pide_comparar} "
           f"ranking={ctx.pide_ranking} stock={ctx.pide_stock}")
+
+    # -2d. IMPACTO APERTURA SABIN (canibalización vs mercado nuevo)
+    pide_sabin_impacto = any(x in p_lower for x in [
+        "sabin.*quito", "sabin.*quitó", "sabin.*hiper", "canibaliz",
+        "sabin.*mercado nuevo", "sabin le quito", "sabin le quitó",
+        "impacto.*sabin", "apertura.*sabin.*hiper"])
+    if pide_sabin_impacto:
+        print(f"   [router] → tpl_impacto_apertura_sabin")
+        df = tpl_impacto_apertura_sabin(ctx)
+        if df is not None:
+            return df
+
+    # -2. PRESUPUESTO POR PROVEEDOR
+    pide_presu_prov = any(x in p_lower for x in [
+        "presupuesto de compra", "presupuesto total", "presupuesto por proveedor",
+        "presupuesto.*proveedor", "cuanto tengo que comprar", "cuánto tengo que comprar",
+        "presupuesto.*30 dias", "presupuesto.*30 días"])
+    if pide_presu_prov:
+        print(f"   [router] → tpl_presupuesto_por_proveedor")
+        df = tpl_presupuesto_por_proveedor(ctx)
+        if df is not None:
+            return df
+
+    # -2b. EXCESO DE STOCK PARA TRASLADO
+    pide_traslado = any(x in p_lower for x in [
+        "exceso de stock", "sobrestock", "trasladar", "traslado entre sucursales",
+        "stock para trasladar", "exceso.*sucursal"])
+    if pide_traslado:
+        print(f"   [router] → tpl_exceso_stock_traslado")
+        df = tpl_exceso_stock_traslado(ctx)
+        if df is not None:
+            return df
+
+    # -2c. ALTA VENTA / BAJO MARGEN (pregunta trampa del dueño)
+    pide_trampa = any(x in p_lower for x in [
+        "genera mas plata", "genera más plata", "mas plata pero", "más plata pero",
+        "casi no me deja", "casi no deja ganancia", "vende mucho pero",
+        "alta venta.*bajo margen", "mucha plata.*poco margen"])
+    if pide_trampa:
+        print(f"   [router] → tpl_alta_venta_bajo_margen")
+        df = tpl_alta_venta_bajo_margen(ctx)
+        if df is not None:
+            return df
+
+    # -1. VALOR PERDIDO POR QUIEBRES (cuánto perdí)
+    pide_perdida = any(x in p_lower for x in [
+        "cuanto perdi", "cuánto perdí", "cuanto se perdio", "cuánto se perdió",
+        "valor perdido", "perdida por quiebre", "pérdida por quiebre",
+        "dinero perdido", "ventas perdidas", "cuanto dinero perdi"])
+    if pide_perdida:
+        print(f"   [router] → tpl_valor_perdido_quiebre")
+        df = tpl_valor_perdido_quiebre(ctx)
+        if df is not None:
+            return df
+
+    # -1b. PRECIO BAJO COSTO (vendiendo a pérdida)
+    pide_bajo_costo = any(x in p_lower for x in [
+        "bajo costo", "bajo el costo", "debajo del costo", "por debajo del costo",
+        "vendiendo a perdida", "vendiendo a pérdida", "costo de reposicion",
+        "costo de reposición", "menor al costo"])
+    if pide_bajo_costo:
+        print(f"   [router] → tpl_precio_bajo_costo")
+        df = tpl_precio_bajo_costo(ctx)
+        if df is not None:
+            return df
 
     # 0. CRÍTICOS CON VENTAS — cuando pide clasificar o alertas
     pide_criticos = any(x in p_lower for x in [
