@@ -650,8 +650,8 @@ st.markdown("""
   <div class="name">🛒 Cucher Agente BI</div>
   <div class="role">Desarrollado por Julio Alberto Lazarte — Data Scientist · BI Lead</div>
   <div class="links">
-    <a href="https://juliolaz.github.io" target="_blank">🌐 Portfolio</a>
-    <a href="https://www.linkedin.com/in/juliolazarte" target="_blank">💼 LinkedIn</a>
+    <a href="https://cv-lazarte-julio.web.app/" target="_blank">🌐 Portfolio</a>
+    <a href="https://www.linkedin.com/in/juliodatascientist/" target="_blank">💼 LinkedIn</a>
   </div>
   <div class="copy">© 2026 Julio Alberto Lazarte. Todos los derechos reservados.</div>
 </div>
