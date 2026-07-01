@@ -58,7 +58,8 @@ from kpis import (cargar_kpis_header, cargar_kpis_alertas,
                   detalle_sin_stock, detalle_stock_critico, detalle_stock_urgente,
                   detalle_exceso_stock, detalle_valor_perdido, detalle_presupuesto_compra,
                   cargar_tendencia_semanal_resumen, detalle_tendencia_articulos,
-                  cargar_rango_tendencia_semanal, calcular_indice_urgencia)
+                  cargar_rango_tendencia_semanal, calcular_indice_urgencia,
+                  cargar_mes_con_datos)
 from notificaciones import (enviar_telegram, guardar_historial,
                              notificar_capacidad_faltante)
 from exportar_excel import generar_excel_detalle
@@ -336,7 +337,13 @@ with col_chat:
     # ── KPIs HEADER ──────────────────────────────────────────
     kpis = cargar_kpis_header()
     if kpis:
-        mes_nom = date.today().strftime("%B %Y")
+        ultima_fecha = cargar_mes_con_datos()
+        import locale
+        try:
+            locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+        except Exception:
+            pass
+        mes_nom = ultima_fecha.strftime("%B %Y").capitalize() if ultima_fecha else date.today().strftime("%B %Y")
         st.markdown(f"##### 🛒 Cucher Mercados · {mes_nom}")
 
         venta_m   = kpis.get("venta_m", 0)
@@ -760,9 +767,19 @@ with col_chat:
 
 # ─── PANEL DERECHO ───────────────────────────────────────────
 with col_panel:
-    # Panel con fondo via CSS aplicado al contenedor nativo de Streamlit
+    st.markdown("""
+<style>
+.panel-title{
+    font-size:0.78rem;font-weight:700;color:#1a2744 !important;
+    text-transform:uppercase;letter-spacing:0.06em;
+    margin-bottom:4px;border-bottom:2px solid #d97706;
+    padding-bottom:3px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-    mes_label = date.today().strftime("%B %Y")
+    ultima_fecha_panel = cargar_mes_con_datos()
+    mes_label = ultima_fecha_panel.strftime("%B %Y").capitalize() if ultima_fecha_panel else date.today().strftime("%B %Y")
 
     # Ventas del mes
     st.markdown(f'<div class="panel-title">📊 Ventas {mes_label} · % = Margen</div>',
@@ -771,9 +788,17 @@ with col_panel:
     if not df_suc.empty:
         fig = grafico_ventas_sucursal(df_suc)
         if fig:
+            fig.update_layout(
+                height=220, margin=dict(l=0,r=0,t=10,b=0),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#1a1a2e", size=9)
+            )
             st.plotly_chart(fig, key="panel_suc",
-                            width="stretch",
+                            use_container_width=True,
                             config={"displayModeBar":False})
+
+    st.markdown("---")
 
     # Utilidad diaria
     st.markdown(f'<div class="panel-title">📈 Utilidad Diaria · {mes_label}</div>',
@@ -782,9 +807,17 @@ with col_panel:
     if not df_util.empty:
         fig = grafico_utilidad_diaria(df_util)
         if fig:
+            fig.update_layout(
+                height=200, margin=dict(l=0,r=0,t=10,b=0),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#1a1a2e", size=9)
+            )
             st.plotly_chart(fig, key="panel_util",
-                            width="stretch",
+                            use_container_width=True,
                             config={"displayModeBar":False})
+
+    st.markdown("---")
 
     # Utilidad mensual comparativa
     st.markdown('<div class="panel-title">📊 Utilidad Mensual 2024 · 2025 · 2026</div>',
@@ -793,8 +826,14 @@ with col_panel:
     if not df_mens.empty:
         fig = grafico_utilidad_mensual(df_mens)
         if fig:
+            fig.update_layout(
+                height=280, margin=dict(l=0,r=0,t=10,b=0),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#1a1a2e", size=9)
+            )
             st.plotly_chart(fig, key="panel_mens",
-                            width="stretch",
+                            use_container_width=True,
                             config={"displayModeBar":False})
 
 

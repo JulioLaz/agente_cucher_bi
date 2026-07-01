@@ -34,27 +34,46 @@ def cargar_kpis_alertas() -> dict:
 
 
 @st.cache_data(ttl=600)
+def cargar_mes_con_datos() -> date:
+    """Devuelve la fecha del último mes con datos en tickets_all."""
+    q = f"SELECT MAX(CAST(fecha_comprobante AS DATE)) AS ultima FROM {T_TICKETS}"
+    try:
+        ultima = get_con().execute(q).df().iloc[0]["ultima"]
+        return ultima
+    except Exception:
+        return date.today()
+
+
+@st.cache_data(ttl=600)
 def cargar_kpis_header() -> dict:
-    """KPIs del mes actual vs mes anterior para el header."""
-    mes_actual = date.today().strftime("%Y-%m")
-    mes_ant    = (date.today().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    """KPIs del mes más reciente con datos vs mes anterior."""
     q = f"""
-        WITH actual AS (
+        WITH ultimo_mes AS (
+            -- Mes más reciente con datos (puede diferir del mes calendario actual)
             SELECT
-                ROUND(SUM(precio_total)/1e6, 2)                                          AS venta_m,
-                ROUND(SUM(precio_total-costo_total)/1e6, 2)                              AS util_m,
-                ROUND((SUM(precio_total)-SUM(costo_total))/NULLIF(SUM(precio_total),0)*100,1) AS margen_pct,
-                COUNT(DISTINCT fecha_comprobante)                                         AS dias
+                EXTRACT(YEAR  FROM MAX(CAST(fecha_comprobante AS DATE))) AS anio,
+                EXTRACT(MONTH FROM MAX(CAST(fecha_comprobante AS DATE))) AS mes
             FROM {T_TICKETS}
-            WHERE strftime(CAST(fecha_comprobante AS DATE), '%Y-%m') = '{mes_actual}'
+        ),
+        actual AS (
+            SELECT
+                ROUND(SUM(precio_total)/1e6, 2)                                               AS venta_m,
+                ROUND(SUM(precio_total-costo_total)/1e6, 2)                                   AS util_m,
+                ROUND((SUM(precio_total)-SUM(costo_total))/NULLIF(SUM(precio_total),0)*100,1) AS margen_pct,
+                COUNT(DISTINCT CAST(fecha_comprobante AS DATE))                               AS dias
+            FROM {T_TICKETS}, ultimo_mes u
+            WHERE EXTRACT(YEAR  FROM CAST(fecha_comprobante AS DATE)) = u.anio
+              AND EXTRACT(MONTH FROM CAST(fecha_comprobante AS DATE)) = u.mes
               AND LOWER(sucursal) IN ('hiper','corrientes','sabin','formosa','express')
         ),
         anterior AS (
             SELECT
                 ROUND(SUM(precio_total)/1e6, 2)             AS venta_m_ant,
                 ROUND(SUM(precio_total-costo_total)/1e6, 2) AS util_m_ant
-            FROM {T_TICKETS}
-            WHERE strftime(CAST(fecha_comprobante AS DATE), '%Y-%m') = '{mes_ant}'
+            FROM {T_TICKETS}, ultimo_mes u
+            WHERE (EXTRACT(YEAR FROM CAST(fecha_comprobante AS DATE)) * 12 +
+                   EXTRACT(MONTH FROM CAST(fecha_comprobante AS DATE))) =
+                  (u.anio * 12 + u.mes - 1)
               AND LOWER(sucursal) IN ('hiper','corrientes','sabin','formosa','express')
         ),
         presup AS (
