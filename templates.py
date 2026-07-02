@@ -804,29 +804,33 @@ def tpl_reposicion_proveedor(ctx: Contexto) -> pd.DataFrame | None:
     Artículos a reponer de un proveedor específico.
     Responde: "¿qué/cuánto comprarle a X proveedor?"
     Busca el proveedor en result_final_alert_all.proveedor (nombre libre).
+    JOIN verificado: r.idarticuloalfa = op.idartalfa
     """
     if not ctx.proveedor_nombre:
         return None
 
+    # Normalizar sin tildes para matchear con datos reales (ej: DON GASTON S.A.)
+    prov_norm = (ctx.proveedor_nombre
+                 .replace("\u00f3","o").replace("\u00e1","a")
+                 .replace("\u00e9","e").replace("\u00ed","i")
+                 .replace("\u00fa","u").replace("\u00f1","n"))
+
     sql = f"""
         SELECT r.descripcion, r.familia, r.subfamilia,
-               TRIM(r.proveedor)    AS proveedor,
+               TRIM(r.proveedor)                AS proveedor,
                r.dias_cobertura,
-               r.STK_TOTAL          AS stock_total,
-               r.total_abastecer    AS unidades_a_pedir,
-               r.PRESUPUESTO        AS presupuesto_compra,
-               r.cant_total         AS ventas_90d,
+               r.STK_TOTAL                      AS stock_total,
+               r.cant_total                     AS ventas_90d_unidades,
+               r.total_abastecer                AS unidades_a_pedir,
+               r.PRESUPUESTO                    AS presupuesto_compra_pesos,
                r.nivel_riesgo,
                r.alerta_reabastecer,
                ROUND(op.ultimo_precio_compra,2) AS ultimo_precio_oc,
-               CAST(op.fecha_ultima_oc AS DATE) AS fecha_ultima_oc
+               CAST(op.fecha_ultima_oc AS DATE)  AS fecha_ultima_oc
         FROM {T_ALERT} r
         LEFT JOIN {T_PRECIOS} op ON r.idarticuloalfa = op.idartalfa
-        WHERE (
-                 LOWER(TRIM(r.proveedor)) LIKE LOWER(\'%{ctx.proveedor_nombre}%\')
-              OR LOWER(TRIM(r.proveedor)) LIKE LOWER(\'%{ctx.proveedor_nombre.replace("ó","o").replace("á","a").replace("é","e").replace("í","i").replace("ú","u")}%\')
-              )
-          AND r.alerta_reabastecer = \'Sí\'
+        WHERE LOWER(TRIM(r.proveedor)) LIKE LOWER('%{prov_norm}%')
+          AND r.alerta_reabastecer = 'Si\'
         ORDER BY r.PRESUPUESTO DESC
         LIMIT 20
     """
