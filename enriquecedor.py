@@ -51,6 +51,7 @@ class Contexto:
 
     # Texto libre residual para el LLM
     texto_libre:    str = ""
+    proveedor_nombre: str = ""  # nombre de proveedor detectado en la pregunta
 
 
 def enriquecer(pregunta: str) -> Contexto:

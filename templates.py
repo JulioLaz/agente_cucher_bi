@@ -714,8 +714,10 @@ def tpl_cuanto_pedir_proveedor(ctx: Contexto) -> pd.DataFrame | None:
     """
     Responde "¿cuánto tengo que pedir y a quién?" para un artículo o categoría.
     JOIN verificado: r.idarticuloalfa = op.idartalfa
+    Columnas limpias: sin margen_pct (no existe en ultimos_precios).
+    Solo muestra unidades_a_pedir > 0 (positivas = necesita reposición).
     """
-    filtros = ["r.PRESUPUESTO >= 0"]
+    filtros = ["r.total_abastecer > 0"]  # solo los que realmente necesitan pedido
 
     if ctx.marcas:
         f_m = " OR ".join(f"LOWER(r.descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
@@ -725,25 +727,25 @@ def tpl_cuanto_pedir_proveedor(ctx: Contexto) -> pd.DataFrame | None:
     elif ctx.familia:
         filtros.append(f"r.familia = \'{ctx.familia}\'")
     else:
-        return None  # necesita al menos un filtro
+        return None
 
     where = "WHERE " + " AND ".join(filtros)
 
     sql = f"""
         SELECT r.descripcion, r.familia, r.subfamilia,
-               TRIM(r.proveedor) AS proveedor_stock,
-               r.total_abastecer AS unidades_a_pedir,
-               r.PRESUPUESTO AS presupuesto_compra,
+               TRIM(r.proveedor)              AS proveedor,
+               r.total_abastecer              AS unidades_a_pedir,
+               r.PRESUPUESTO                  AS presupuesto_compra,
                r.dias_cobertura,
-               r.STK_TOTAL AS stock_total,
-               r.cant_total AS ventas_90d,
-               ROUND(op.ultimo_precio_compra,2) AS ultimo_precio_compra,
-               TRIM(op.proveedor_oc) AS proveedor_oc,
+               r.STK_TOTAL                    AS stock_total,
+               r.cant_total                   AS ventas_90d,
+               ROUND(op.ultimo_precio_compra,2) AS ultimo_precio_oc,
+               TRIM(op.proveedor_oc)          AS proveedor_oc,
                CAST(op.fecha_ultima_oc AS DATE) AS fecha_ultima_oc
         FROM {T_ALERT} r
         LEFT JOIN {T_PRECIOS} op ON r.idarticuloalfa = op.idartalfa
         {where}
-        ORDER BY r.cant_total DESC
+        ORDER BY r.PRESUPUESTO DESC
         LIMIT 15
     """
     df, err = ejecutar_sql(sql)
@@ -796,6 +798,42 @@ def tpl_ventas_por_sucursal(ctx: Contexto) -> pd.DataFrame | None:
     return df if not df.empty else None
 
 
+
+def tpl_reposicion_proveedor(ctx: Contexto) -> pd.DataFrame | None:
+    """
+    Artículos a reponer de un proveedor específico.
+    Responde: "¿qué/cuánto comprarle a X proveedor?"
+    Busca el proveedor en result_final_alert_all.proveedor (nombre libre).
+    """
+    if not ctx.proveedor_nombre:
+        return None
+
+    sql = f"""
+        SELECT r.descripcion, r.familia, r.subfamilia,
+               TRIM(r.proveedor)    AS proveedor,
+               r.dias_cobertura,
+               r.STK_TOTAL          AS stock_total,
+               r.total_abastecer    AS unidades_a_pedir,
+               r.PRESUPUESTO        AS presupuesto_compra,
+               r.cant_total         AS ventas_90d,
+               r.nivel_riesgo,
+               r.alerta_reabastecer,
+               ROUND(op.ultimo_precio_compra,2) AS ultimo_precio_oc,
+               CAST(op.fecha_ultima_oc AS DATE) AS fecha_ultima_oc
+        FROM {T_ALERT} r
+        LEFT JOIN {T_PRECIOS} op ON r.idarticuloalfa = op.idartalfa
+        WHERE LOWER(TRIM(r.proveedor)) LIKE LOWER(\'%{ctx.proveedor_nombre}%\')
+          AND r.alerta_reabastecer = \'Sí\'
+        ORDER BY r.PRESUPUESTO DESC
+        LIMIT 20
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template reposicion_proveedor] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
 # ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
@@ -817,7 +855,19 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
         if df is not None:
             return df
 
-    # CUÁNTO PEDIR Y A QUIÉN — requiere marca o categoría    # CUÁNTO PEDIR Y A QUIÉN — requiere marca o categoría
+    # REPOSICIÓN POR PROVEEDOR — "qué comprarle a X / cuánto pedir a Tremblay"
+    pide_proveedor = any(x in p_lower_temprano for x in [
+        "tremblay","don gaston","don gastón","calchaqui","calchaquí",
+        "liebig","williner","cremigal","serenisima","serenísima",
+        "arcor","unilever","la papelera","distribuidora jota",
+        "comprarle a","pedirle a","proveedor"])
+    if pide_proveedor and ctx.proveedor_nombre:
+        print(f"   [router] → tpl_reposicion_proveedor ({ctx.proveedor_nombre})")
+        df = tpl_reposicion_proveedor(ctx)
+        if df is not None:
+            return df
+
+    # CUÁNTO PEDIR Y A QUIÉN — requiere marca o categoría    # CUÁNTO PEDIR Y A QUIÉN — requiere marca o categoría    # CUÁNTO PEDIR Y A QUIÉN — requiere marca o categoría
     pide_pedir = any(x in p_lower_temprano for x in [
         "cuanto tengo que pedir", "cuánto tengo que pedir",
         "cuanto pedir", "cuánto pedir",
@@ -935,7 +985,9 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     pide_perdida = any(x in p_lower for x in [
         "cuanto perdi", "cuánto perdí", "cuanto se perdio", "cuánto se perdió",
         "valor perdido", "perdida por quiebre", "pérdida por quiebre",
-        "dinero perdido", "ventas perdidas", "cuanto dinero perdi"])
+        "dinero perdido", "ventas perdidas", "cuanto dinero perdi",
+        "perdiendo plata", "perdiendo dinero", "perdemos plata",
+        "perdemos dinero", "cuanto perdemos", "cuánto perdemos"])
     if pide_perdida:
         print(f"   [router] → tpl_valor_perdido_quiebre")
         df = tpl_valor_perdido_quiebre(ctx)
@@ -946,7 +998,8 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     pide_bajo_costo = any(x in p_lower for x in [
         "bajo costo", "bajo el costo", "debajo del costo", "por debajo del costo",
         "vendiendo a perdida", "vendiendo a pérdida", "costo de reposicion",
-        "costo de reposición", "menor al costo"])
+        "costo de reposición", "menor al costo", "vendemos bajo",
+        "vendemos por debajo", "precio menor al costo", "vendiendo a perdida"])
     if pide_bajo_costo:
         print(f"   [router] → tpl_precio_bajo_costo")
         df = tpl_precio_bajo_costo(ctx)
