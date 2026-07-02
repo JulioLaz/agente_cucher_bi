@@ -64,7 +64,17 @@ def enriquecer(pregunta: str) -> Contexto:
 
     # ── 1. CATEGORÍA ─────────────────────────────────────────
     import re as _re2
-    for sinonimo, cat_key in SINONIMO_A_CATEGORIA.items():
+
+    # Primero buscar frases compuestas (más específicas) para evitar
+    # que "alimentos" en "alimentos para mascotas" gane antes que "mascotas"
+    # Ordenar sinónimos de más largo a más corto para que las frases
+    # específicas ganen sobre las palabras genéricas
+    sinonimos_ordenados = sorted(
+        SINONIMO_A_CATEGORIA.items(),
+        key=lambda x: len(x[0]),
+        reverse=True  # más largo primero = más específico
+    )
+    for sinonimo, cat_key in sinonimos_ordenados:
         if _re2.search(r'\b' + _re2.escape(sinonimo) + r'\b', p):
             ctx.categoria_key = cat_key
             cat = CATEGORIAS[cat_key]
