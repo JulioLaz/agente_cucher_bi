@@ -393,3 +393,172 @@ def _respuesta_vacio(pregunta: str, ctx: Contexto) -> str:
         f"No encontré datos para tu consulta.\n\n"
         f"**Sugerencias:**\n{sug_str}"
     )
+
+
+SCHEMA_SQL = """
+=== TABLAS DISPONIBLES EN MotherDuck (my_db) ===
+
+── 1. my_db.tickets_all (5.6M filas — ventas históricas 2024-2026) ────────────
+  fecha_comprobante  VARCHAR   ← SIEMPRE castear: CAST(fecha_comprobante AS DATE)
+  idarticulo         BIGINT    ← JOIN con result_final_alert_all por idarticulo
+  idartalfa          BIGINT    ← JOIN con ultimos_precios por idartalfa
+  descripcion        VARCHAR
+  costo_total        DOUBLE
+  precio_total       DOUBLE    ← ventas en $
+  sucursal           VARCHAR   ← valores: 'hiper','corrientes','sabin','formosa','express'
+  costo_unitario     DOUBLE
+  precio_unitario    DOUBLE
+  margen_porcentual  DOUBLE    ← ya calculado como decimal (0.35 = 35%)
+  familia            VARCHAR
+  subfamilia         VARCHAR
+  cantidad_total     DOUBLE    ← unidades vendidas
+
+── 2. my_db.result_final_alert_all (18.3K filas, 139 cols — alertas y stock) ──
+  idarticulo         BIGINT
+  idarticuloalfa     BIGINT    ← JOIN con ultimos_precios: ON r.idarticuloalfa = op.idartalfa
+                               ← NUNCA usar "idartalfa" en esta tabla — no existe
+  descripcion        VARCHAR
+  familia            VARCHAR
+  subfamilia         VARCHAR
+  proveedor          VARCHAR   ← usar TRIM(proveedor) siempre
+  idproveedor        BIGINT
+  uxb                BIGINT    ← unidades por bulto
+  cant_total         BIGINT    ← ventas últimos 90d (todas las sucursales)
+  STK_TOTAL          BIGINT    ← stock total consolidado
+  stk_hiper          BIGINT    ← stock por sucursal
+  stk_corrientes     BIGINT
+  stk_sabin          BIGINT
+  stk_formosa        BIGINT
+  stk_express        BIGINT
+  stk_TIROL          BIGINT    ← depósito Tirol
+  stk_central        BIGINT    ← depósito Central
+  dias_cobertura     BIGINT    ← días de stock restante (0=sin stock)
+  nivel_riesgo       VARCHAR   ← valores EXACTOS: 'Alto','Medio','Bajo','Muy Bajo','Analizar stk'
+  alerta_reabastecer VARCHAR   ← valores EXACTOS: 'Sí' (con tilde), 'No', 'Ver'
+                               ← NUNCA usar 'SI' sin tilde — devuelve 0 filas
+  clase_abc          VARCHAR   ← valores: 'A','B','C','0'
+  PRESUPUESTO        BIGINT    ← presupuesto de compra estimado en $
+  total_abastecer    BIGINT    ← unidades totales a pedir (puede ser negativo = exceso)
+  cor_abastecer      BIGINT    ← unidades a enviar a Corrientes
+  exp_abastecer      BIGINT    ← unidades a enviar a Express
+  for_abastecer      BIGINT    ← unidades a enviar a Formosa
+  sab_abastecer      BIGINT    ← unidades a enviar a Sabin
+  hip_abastecer      BIGINT    ← unidades a enviar a Hiper
+  precio_actual      DOUBLE    ← precio de venta actual
+  costo_unit         DOUBLE    ← costo unitario actual (NO usar costo_unitario — no existe)
+  precio_bajo_costo  BOOLEAN   ← true = vendiendo por debajo del costo
+  exceso_STK         BIGINT    ← unidades de sobrestock (>0 = tiene exceso)
+  valor_perdido_TOTAL BIGINT   ← $ perdidos por quiebres de stock
+  unidades_perdidas_TOTAL BIGINT ← unidades no vendidas por falta de stock
+  ranking_mes        BIGINT    ← 1=mejor mes del año, 12=peor
+  mes_actual         DOUBLE    ← % del año que representa el mes actual
+  meses_act_estac    BIGINT    ← meses activos (<4 = muy estacional)
+  margen_porc_all    DOUBLE    ← margen histórico 90d
+  estrategia         VARCHAR   ← recomendación automática generada por el modelo
+  prioridad          BIGINT
+  accion_recomendada VARCHAR
+  cnt_ultimos_7d     BIGINT    ← ventas últimos 7 días
+  cnt_ultimos_14d    BIGINT    ← ventas últimos 14 días
+  cnt_ultimo_mes     BIGINT    ← ventas último mes
+
+── 3. my_db.ultimos_precios (13.7K filas — último precio OC por artículo) ─────
+  idartalfa              BIGINT  ← JOIN con tickets_all.idartalfa
+                                 ← JOIN con result_final_alert_all: ON r.idarticuloalfa = op.idartalfa
+  ultimo_precio_compra   DOUBLE
+  fecha_ultima_oc        TIMESTAMP_MS ← castear: CAST(fecha_ultima_oc AS DATE)
+  proveedor_oc           VARCHAR ← usar TRIM(proveedor_oc)
+  fecha_extraccion       VARCHAR
+
+── 4. my_db.proveedores (39.6K filas — stock detallado por sucursal) ──────────
+  idartalfa          BIGINT
+  idarticuloalfa     DOUBLE
+  idarticulo         DOUBLE
+  descripcion        VARCHAR
+  familia            VARCHAR
+  subfamilia         VARCHAR
+  proveedor          VARCHAR
+  uxb                DOUBLE
+  stk_corrientes     DOUBLE
+  stk_express        DOUBLE
+  stk_formosa        DOUBLE
+  stk_hiper          DOUBLE
+  stk_tirol          DOUBLE
+  stk_central        DOUBLE
+  stk_sabin          DOUBLE
+  stk_total          DOUBLE
+
+=== REGLAS CRÍTICAS DE SQL ===
+
+REGLA 1 — JOINs correctos:
+  tickets_all → ultimos_precios:            t.idartalfa = op.idartalfa           ✅
+  result_final_alert_all → ultimos_precios: r.idarticuloalfa = op.idartalfa      ✅
+  NUNCA: r.idartalfa = op.idartalfa  ← "idartalfa" NO EXISTE en result_final_alert_all ❌
+
+REGLA 2 — alerta_reabastecer:
+  WHERE alerta_reabastecer = 'Sí'   ✅ (con tilde)
+  WHERE alerta_reabastecer = 'SI'   ❌ (devuelve 0 filas)
+  WHERE alerta_reabastecer = 'si'   ❌
+
+REGLA 3 — fechas en tickets_all:
+  CAST(fecha_comprobante AS DATE)   ✅
+  EXTRACT(YEAR FROM CAST(fecha_comprobante AS DATE))  ✅
+  fecha_comprobante > '2026-01-01'  ❌ (es VARCHAR, no DATE)
+
+REGLA 4 — costo en result_final_alert_all:
+  costo_unit      ✅ (nombre correcto)
+  costo_unitario  ❌ (no existe en esta tabla)
+
+REGLA 5 — sucursales en tickets_all:
+  LOWER(sucursal) IN ('hiper','corrientes','sabin','formosa','express')  ✅
+  No incluir 'tirol' ni 'central' en filtros de ventas (son depósitos)
+
+=== EJEMPLOS DE QUERIES VERIFICADAS ===
+
+-- Ventas por sucursal de una categoría en un período:
+SELECT sucursal, ROUND(SUM(precio_total)/1e6,2) AS ventas_m,
+       ROUND(SUM(cantidad_total),0) AS unidades
+FROM my_db.tickets_all
+WHERE LOWER(subfamilia) LIKE '%yerbas%'
+  AND EXTRACT(MONTH FROM CAST(fecha_comprobante AS DATE)) = 6
+  AND EXTRACT(YEAR FROM CAST(fecha_comprobante AS DATE)) = 2026
+GROUP BY sucursal ORDER BY ventas_m DESC;
+
+-- Artículos a reponer de un proveedor (JOIN correcto):
+SELECT r.descripcion, TRIM(r.proveedor) AS proveedor,
+       r.dias_cobertura, r.total_abastecer, r.PRESUPUESTO,
+       ROUND(op.ultimo_precio_compra,2) AS precio_oc,
+       TRIM(op.proveedor_oc) AS proveedor_oc
+FROM my_db.result_final_alert_all r
+LEFT JOIN my_db.ultimos_precios op ON r.idarticuloalfa = op.idartalfa
+WHERE LOWER(TRIM(r.proveedor)) LIKE '%tremblay%'
+  AND r.alerta_reabastecer = 'Sí'
+ORDER BY r.PRESUPUESTO DESC;
+
+-- Comparación interanual misma categoría:
+SELECT EXTRACT(YEAR FROM CAST(fecha_comprobante AS DATE)) AS anio,
+       ROUND(SUM(precio_total)/1e6,1) AS ventas_m
+FROM my_db.tickets_all
+WHERE (CAST(fecha_comprobante AS DATE) BETWEEN '2026-06-01' AND '2026-06-30'
+    OR CAST(fecha_comprobante AS DATE) BETWEEN '2025-06-01' AND '2025-06-30')
+  AND LOWER(subfamilia) LIKE '%yerbas%'
+GROUP BY anio ORDER BY anio;
+
+-- Artículos vendiéndose bajo costo (campo BOOLEAN):
+SELECT descripcion, familia, TRIM(proveedor) AS proveedor,
+       ROUND(precio_actual,2) AS precio_venta,
+       ROUND(costo_unit,2) AS costo,
+       ROUND((precio_actual-costo_unit)/NULLIF(costo_unit,0)*100,1) AS margen_pct,
+       cant_total AS ventas_90d
+FROM my_db.result_final_alert_all
+WHERE precio_bajo_costo = true
+ORDER BY cant_total DESC LIMIT 15;
+
+-- Valor perdido por quiebres filtrado por familia:
+SELECT descripcion, familia, TRIM(proveedor) AS proveedor,
+       valor_perdido_TOTAL, unidades_perdidas_TOTAL, dias_cobertura
+FROM my_db.result_final_alert_all
+WHERE valor_perdido_TOTAL > 0 AND familia = 'Frescos'
+ORDER BY valor_perdido_TOTAL DESC LIMIT 15;
+"""
+
+SYSTEM_SQL
