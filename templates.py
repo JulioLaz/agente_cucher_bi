@@ -418,25 +418,33 @@ def tpl_valor_perdido_quiebre(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | 
 
 def tpl_precio_bajo_costo(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None:
     """
-    Artículos vendiéndose por debajo del costo actual — pérdida directa por venta.
-    Usa precio_bajo_costo = true de result_final_alert_all.
+    Articulos vendiendose por debajo del costo actual.
+    Soporta filtro por proveedor_nombre, subfamilia, familia o marcas.
     """
     filtros = ["precio_bajo_costo = true"]
-    if ctx.subfamilia:
+
+    if ctx.proveedor_nombre:
+        prov = (ctx.proveedor_nombre
+                .replace("\u00f3","o").replace("\u00e1","a")
+                .replace("\u00e9","e").replace("\u00ed","i")
+                .replace("\u00fa","u").replace("\u00f1","n"))
+        filtros.append(f"LOWER(TRIM(proveedor)) LIKE LOWER(\'%{prov}%\')")
+    elif ctx.subfamilia:
         filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
     elif ctx.familia:
         filtros.append(f"familia = \'{ctx.familia}\'")
     elif ctx.marcas:
         f_m = " OR ".join(f"LOWER(descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
         filtros.append(f"({f_m})")
+
     where = "WHERE " + " AND ".join(filtros)
 
     sql = f"""
         SELECT descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
                ROUND(precio_actual,2)  AS precio_venta,
                ROUND(costo_unit,2)     AS costo_actual,
-               ROUND((precio_actual-costo_unit)/costo_unit*100,1) AS margen_ticket_pct,
-               cant_total AS ventas_90d
+               ROUND((precio_actual-costo_unit)/costo_unit*100,1) AS margen_pct,
+               cant_total AS ventas_90d_unidades
         FROM {T_ALERT}
         {where}
         ORDER BY cant_total DESC
@@ -447,7 +455,6 @@ def tpl_precio_bajo_costo(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None
         print(f"   [template precio_bajo_costo] Error: {err}")
         return None
     return df if not df.empty else None
-
 
 
 def tpl_presupuesto_por_proveedor(ctx: Contexto, top_n: int = 15) -> pd.DataFrame | None:
@@ -841,6 +848,48 @@ def tpl_reposicion_proveedor(ctx: Contexto) -> pd.DataFrame | None:
     return df if not df.empty else None
 
 
+
+
+def tpl_ranking_familias_margen(ctx: Contexto) -> pd.DataFrame | None:
+    """
+    Ranking de familias por margen real usando margen_porcentual de tickets_all.
+    Responde: "cual es la familia con mejor margen", "que familia deja mas ganancia".
+    """
+    filtros = ["LOWER(sucursal) IN (\'hiper\',\'corrientes\',\'sabin\',\'formosa\')"]
+
+    if ctx.fecha_desde:
+        filtros.append(
+            f"CAST(fecha_comprobante AS DATE) BETWEEN \'{ctx.fecha_desde}\' AND \'{ctx.fecha_hasta}\'"
+        )
+    else:
+        # Por defecto: mes mas reciente con datos
+        filtros.append(
+            "(SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM " + T_TICKETS + ") - INTERVAL 30 DAY"
+            " <= CAST(fecha_comprobante AS DATE)"
+        )
+
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT familia,
+               ROUND(AVG(margen_porcentual)*100, 1)    AS margen_promedio_pct,
+               ROUND(SUM(precio_total)/1e6, 1)         AS ventas_m,
+               ROUND(SUM(precio_total-costo_total)/1e6,1) AS utilidad_m,
+               ROUND(SUM(cantidad_total),0)            AS unidades,
+               COUNT(DISTINCT idarticulo)              AS articulos
+        FROM {T_TICKETS}
+        {where}
+        GROUP BY familia
+        HAVING SUM(precio_total) > 50000000
+        ORDER BY margen_promedio_pct DESC
+        LIMIT 10
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template ranking_familias_margen] Error: {err}")
+        return None
+    return df if not df.empty else None
+
 # ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
@@ -999,6 +1048,19 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     if pide_traslado:
         print(f"   [router] → tpl_exceso_stock_traslado")
         df = tpl_exceso_stock_traslado(ctx)
+        if df is not None:
+            return df
+
+    # RANKING FAMILIAS POR MARGEN
+    pide_ranking_margen = any(x in p_lower_temprano for x in [
+        "familia con mejor margen", "familia con mas margen",
+        "familia con más margen", "que familia deja mas",
+        "qué familia deja más", "mejor margen por familia",
+        "familia mas rentable", "familia más rentable",
+        "cual es la familia", "cuál es la familia"])
+    if pide_ranking_margen:
+        print(f"   [router] → tpl_ranking_familias_margen")
+        df = tpl_ranking_familias_margen(ctx)
         if df is not None:
             return df
 
