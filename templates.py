@@ -822,7 +822,10 @@ def tpl_reposicion_proveedor(ctx: Contexto) -> pd.DataFrame | None:
                CAST(op.fecha_ultima_oc AS DATE) AS fecha_ultima_oc
         FROM {T_ALERT} r
         LEFT JOIN {T_PRECIOS} op ON r.idarticuloalfa = op.idartalfa
-        WHERE LOWER(TRIM(r.proveedor)) LIKE LOWER(\'%{ctx.proveedor_nombre}%\')
+        WHERE (
+                 LOWER(TRIM(r.proveedor)) LIKE LOWER(\'%{ctx.proveedor_nombre}%\')
+              OR LOWER(TRIM(r.proveedor)) LIKE LOWER(\'%{ctx.proveedor_nombre.replace("ó","o").replace("á","a").replace("é","e").replace("í","i").replace("ú","u")}%\')
+              )
           AND r.alerta_reabastecer = \'Sí\'
         ORDER BY r.PRESUPUESTO DESC
         LIMIT 20

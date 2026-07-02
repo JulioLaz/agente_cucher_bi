@@ -169,7 +169,12 @@ def enriquecer(pregunta: str) -> Contexto:
     ]
     for _prov in PROVEEDORES_CONOCIDOS:
         if _re2.search(r'\b' + _re2.escape(_prov) + r'\b', p):
-            ctx.proveedor_nombre = _prov
+            # Normalizar: quitar tildes para que el LIKE matchee con datos reales
+            _norm = (_prov
+                     .replace("ó","o").replace("á","a")
+                     .replace("é","e").replace("í","i")
+                     .replace("ú","u").replace("ñ","n"))
+            ctx.proveedor_nombre = _norm
             break
 
     # ── 5. SUCURSALES ─────────────────────────────────────────
