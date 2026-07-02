@@ -709,6 +709,93 @@ def tpl_candidatos_oferta(ctx: Contexto, top_n: int = 20) -> pd.DataFrame | None
         return None
     return df if not df.empty else None
 
+
+def tpl_cuanto_pedir_proveedor(ctx: Contexto) -> pd.DataFrame | None:
+    """
+    Responde "¿cuánto tengo que pedir y a quién?" para un artículo o categoría.
+    JOIN verificado: r.idarticuloalfa = op.idartalfa
+    """
+    filtros = ["r.PRESUPUESTO >= 0"]
+
+    if ctx.marcas:
+        f_m = " OR ".join(f"LOWER(r.descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
+        filtros.append(f"({f_m})")
+    elif ctx.subfamilia:
+        filtros.append(f"LOWER(r.subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"r.familia = \'{ctx.familia}\'")
+    else:
+        return None  # necesita al menos un filtro
+
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT r.descripcion, r.familia, r.subfamilia,
+               TRIM(r.proveedor) AS proveedor_stock,
+               r.total_abastecer AS unidades_a_pedir,
+               r.PRESUPUESTO AS presupuesto_compra,
+               r.dias_cobertura,
+               r.STK_TOTAL AS stock_total,
+               r.cant_total AS ventas_90d,
+               ROUND(op.ultimo_precio_compra,2) AS ultimo_precio_compra,
+               TRIM(op.proveedor_oc) AS proveedor_oc,
+               CAST(op.fecha_ultima_oc AS DATE) AS fecha_ultima_oc
+        FROM {T_ALERT} r
+        LEFT JOIN {T_PRECIOS} op ON r.idarticuloalfa = op.idartalfa
+        {where}
+        ORDER BY r.cant_total DESC
+        LIMIT 15
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template cuanto_pedir] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
+
+def tpl_ventas_por_sucursal(ctx: Contexto) -> pd.DataFrame | None:
+    """
+    Ventas totales agrupadas por sucursal para una categoría/marca/período.
+    Responde: "¿qué sucursal vendió más X?"
+    """
+    filtros = []
+
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"familia = \'{ctx.familia}\'")
+    elif ctx.marcas:
+        f_m = " OR ".join(f"LOWER(descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
+        filtros.append(f"({f_m})")
+
+    if ctx.fecha_desde:
+        filtros.append(
+            f"CAST(fecha_comprobante AS DATE) BETWEEN \'{ctx.fecha_desde}\' AND \'{ctx.fecha_hasta}\'"
+        )
+
+    where = ("WHERE " + " AND ".join(filtros)) if filtros else ""
+
+    sql = f"""
+        SELECT sucursal,
+               ROUND(SUM(precio_total)/1e6, 2)       AS ventas_m,
+               ROUND(SUM(precio_total-costo_total)/1e6, 2) AS utilidad_m,
+               ROUND(SUM(cantidad_total),0)           AS unidades,
+               ROUND((SUM(precio_total)-SUM(costo_total))
+                     /NULLIF(SUM(precio_total),0)*100,1) AS margen_pct,
+               COUNT(DISTINCT idarticulo)             AS skus_vendidos
+        FROM {T_TICKETS}
+        {where}
+        GROUP BY sucursal
+        ORDER BY ventas_m DESC
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template ventas_por_sucursal] Error: {err}")
+        return None
+    return df if not df.empty else None
+
+
 # ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
@@ -718,7 +805,37 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     """
     p_lower_temprano = ctx.texto_libre.lower()
 
-    # OFERTA RÁPIDA — no requiere categoría, funciona antes del corte por falta de categoría
+    # VENTAS POR SUCURSAL — "qué sucursal vendió más X"
+    pide_por_sucursal = any(x in p_lower_temprano for x in [
+        "que sucursal", "qué sucursal", "por sucursal",
+        "cada sucursal", "sucursal vendio", "sucursal vendió",
+        "desglosado por sucursal", "desglose por sucursal",
+        "cuanto vendio cada", "cuánto vendió cada"])
+    if pide_por_sucursal and (ctx.categoria_key or ctx.marcas or ctx.subfamilia):
+        print(f"   [router] → tpl_ventas_por_sucursal")
+        df = tpl_ventas_por_sucursal(ctx)
+        if df is not None:
+            return df
+
+    # CUÁNTO PEDIR Y A QUIÉN — requiere marca o categoría    # CUÁNTO PEDIR Y A QUIÉN — requiere marca o categoría
+    pide_pedir = any(x in p_lower_temprano for x in [
+        "cuanto tengo que pedir", "cuánto tengo que pedir",
+        "cuanto pedir", "cuánto pedir",
+        "cuanto hay que pedir", "cuánto hay que pedir",
+        "a quien le compro", "a quién le compro",
+        "a quien compro", "a quién compro",
+        "a que proveedor", "a qué proveedor",
+        "quien me vende", "quién me vende",
+        "donde compro", "dónde compro",
+        "cuanto tengo que comprar", "cuánto tengo que comprar",
+        "proveedor.*pedir", "pedir.*proveedor"])
+    if pide_pedir:
+        print(f"   [router] → tpl_cuanto_pedir_proveedor")
+        df = tpl_cuanto_pedir_proveedor(ctx)
+        if df is not None:
+            return df
+
+    # OFERTA RÁPIDA — no requiere categoría, funciona antes del corte por falta de categoría    # OFERTA RÁPIDA — no requiere categoría, funciona antes del corte por falta de categoría
     pide_oferta_temprano = any(x in p_lower_temprano for x in [
         "oferta", "ofertas", "liquidar", "liquidacion", "liquidación",
         "descuento", "descuentos", "poner en oferta", "que podemos poner de oferta",

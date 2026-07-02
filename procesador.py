@@ -62,7 +62,8 @@ my_db.result_final_alert_all (18.3K filas, 139 columnas — artículos activos 9
   clase_abc VARCHAR, prioridad BIGINT
   PRESUPUESTO BIGINT, total_abastecer BIGINT
   precio_actual DOUBLE, costo_unit DOUBLE  ← margen ticket = (precio_actual-costo_unit)/costo_unit*100
-  idarticuloalfa BIGINT  ← equivale a idartalfa para JOINs
+  idarticuloalfa BIGINT  ← JOIN con ultimos_precios: r.idarticuloalfa = op.idartalfa
+                           ← NUNCA usar "idartalfa" en result_final_alert_all — no existe
   proveedor VARCHAR, idproveedor BIGINT
   cant_total BIGINT  ← ventas en unidades últimos 90 días (usar para "más vendidos")
   exceso_STK BIGINT  ← unidades de exceso de stock (>0 significa sobrestock)
@@ -71,6 +72,10 @@ my_db.result_final_alert_all (18.3K filas, 139 columnas — artículos activos 9
   unidades_perdidas_TOTAL BIGINT  ← unidades no vendidas por falta de stock
   cantidad_predicha DOUBLE, pred_ventas_actual DOUBLE  ← forecast de demanda
   precio_optimo_ventas DOUBLE  ← precio recomendado por el modelo
+
+REGLA CRÍTICA DE JOIN:
+  result_final_alert_all JOIN ultimos_precios → ON r.idarticuloalfa = op.idartalfa  ✅
+  NUNCA: ON r.idartalfa = op.idartalfa  ← "idartalfa" no existe en result_final_alert_all
 
 === REGLAS CRÍTICAS ===
 
