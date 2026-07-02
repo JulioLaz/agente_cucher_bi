@@ -144,6 +144,34 @@ def enriquecer(pregunta: str) -> Contexto:
         factor = UNIDADES_PESO.get(unidad, 1)
         ctx.rango_max_g = int(valor * factor)
 
+    # ── 4b. PROVEEDOR MENCIONADO ──────────────────────────────
+    PROVEEDORES_CONOCIDOS = [
+        "tremblay",
+        "don gaston", "don gastón",
+        "calchaqui", "calchaquí", "abastecedora calchaqui",
+        "liebig", "coop liebig",
+        "williner", "alfredo williner",
+        "cremigal",
+        "serenisima", "serenísima", "la serenisima", "mastellone",
+        "arcor", "unilever", "unilever bpc",
+        "la papelera", "papelera del plata",
+        "distribuidora jota", "jota be",
+        "sancor", "ilolay",
+        "molinos", "cañuelas", "molino cañuelas",
+        "ledesma", "bimbo", "fargo",
+        "est. las marias", "las marias",
+        "cachuera", "la cachuera",
+        "abril distribuciones", "dreamco",
+        "guerra hnos", "rosales ramon",
+        "logistica la serenisima", "logística la serenísima",
+        "butter", "rap", "produmen", "hreñuk",
+        "pbsa", "pepsico",
+    ]
+    for _prov in PROVEEDORES_CONOCIDOS:
+        if _re2.search(r'\b' + _re2.escape(_prov) + r'\b', p):
+            ctx.proveedor_nombre = _prov
+            break
+
     # ── 5. SUCURSALES ─────────────────────────────────────────
     for suc in SUC_VENTAS + SUC_DEPOSITOS + SUC_ESPECIAL:
         if suc in p:
