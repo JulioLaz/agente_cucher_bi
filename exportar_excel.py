@@ -20,7 +20,16 @@ _COLOR_ABASTECER = "#E9F8EF"   # *_abastecer
 _COLOR_NUM       = "#F3EAFB"   # ventas, dias_cobertura, uxb, exceso, perdido
 _COLOR_MONEY     = "#FDEAEA"   # presupuesto_compra, valor_perdido
 
+# Colores de accion_sugerida se aplican dinámicamente por valor
+_COLOR_ACCION = {
+    "🔴 Comprar ya":         "#FFD7D7",
+    "🟠 OC próximos días":   "#FFE8CC",
+    "🟡 Monitorear":         "#FFF8CC",
+    "🟢 Sin urgencia":       "#D7F5D7",
+}
+
 _GRUPOS = {
+    "indice_urgencia": _COLOR_MONEY, "accion_sugerida": _COLOR_MONEY,
     "descripcion": _COLOR_TEXTO, "familia": _COLOR_TEXTO,
     "subfamilia": _COLOR_TEXTO, "proveedor": _COLOR_TEXTO,
 
@@ -105,6 +114,14 @@ def generar_excel_detalle(df: pd.DataFrame, nombre_hoja: str = "Detalle") -> io.
             for row_idx, valor in enumerate(serie, start=1):
                 if pd.isna(valor):
                     worksheet.write_blank(row_idx, col_idx, None, body_fmt)
+                elif col_name == "accion_sugerida" and isinstance(valor, str):
+                    # Color dinámico según el nivel de urgencia
+                    color_acc = _COLOR_ACCION.get(valor, _COLOR_MONEY)
+                    fmt_acc = workbook.add_format({
+                        "bg_color": color_acc, "border": 1,
+                        "border_color": "#E5E5E5", "bold": True
+                    })
+                    worksheet.write(row_idx, col_idx, valor, fmt_acc)
                 else:
                     worksheet.write(row_idx, col_idx, valor, body_fmt)
 

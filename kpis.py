@@ -481,8 +481,22 @@ def calcular_indice_urgencia(df: pd.DataFrame) -> pd.DataFrame:
         out["presupuesto_norm"] * 0.2
     ).round(3)
 
+    # Interpretación legible del índice
+    def _nivel(iur: float) -> str:
+        if iur >= 0.7:  return "🔴 Comprar ya"
+        if iur >= 0.5:  return "🟠 OC próximos días"
+        if iur >= 0.3:  return "🟡 Monitorear"
+        return               "🟢 Sin urgencia"
+
+    out["accion_sugerida"] = out["indice_urgencia"].apply(_nivel)
+
     # Limpiar columnas intermedias de normalización, dejar solo lo legible
     out = out.drop(columns=["pendiente_rel", "pendiente_norm", "presupuesto_norm"])
+
+    # Reordenar: indice + accion primero, luego el resto
+    cols_primero = ["indice_urgencia", "accion_sugerida"]
+    resto = [c for c in out.columns if c not in cols_primero]
+    out = out[cols_primero + resto]
 
     return out.sort_values("indice_urgencia", ascending=False).reset_index(drop=True)
 

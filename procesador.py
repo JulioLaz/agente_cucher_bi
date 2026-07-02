@@ -325,6 +325,8 @@ def _extraer_y_ejecutar(raw: str) -> tuple[str, pd.DataFrame, str, str]:
 
     # Limpiar el SQL extraído
     sql = sql.strip().strip('"').strip("'").strip()
+    # Decodificar \n y \t literales que el LLM a veces genera como escape
+    sql = sql.replace("\\n", "\n").replace("\\t", "  ")
 
     if not sql or len(sql) < 10:
         return "", pd.DataFrame(), "No se pudo extraer SQL válido de la respuesta", "error_sql"

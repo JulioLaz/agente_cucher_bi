@@ -666,6 +666,49 @@ def tpl_tendencia_semanal(ctx: Contexto, top_n: int = 30) -> pd.DataFrame | None
     return df if not df.empty else None
 
 
+
+def tpl_candidatos_oferta(ctx: Contexto, top_n: int = 20) -> pd.DataFrame | None:
+    """
+    Candidatos a poner en oferta: artículos con exceso de stock +
+    margen > 20% + han tenido ventas recientes.
+    Verificado en MD: Picadillo La Negra (53.6% margen, 311K exceso),
+    Jabón Zorro (60% margen, 108K exceso), etc.
+    """
+    filtros = [
+        "exceso_STK > 0",
+        "precio_actual > costo_unit",
+        "(precio_actual-costo_unit)/NULLIF(costo_unit,0) > 0.20",
+        "cant_total > 0"
+    ]
+    if ctx.subfamilia:
+        filtros.append(f"LOWER(subfamilia) LIKE LOWER(\'%{ctx.subfamilia}%\')")
+    elif ctx.familia:
+        filtros.append(f"familia = \'{ctx.familia}\'")
+    elif ctx.marcas:
+        f_m = " OR ".join(f"LOWER(descripcion) LIKE \'%{m}%\'" for m in ctx.marcas)
+        filtros.append(f"({f_m})")
+    where = "WHERE " + " AND ".join(filtros)
+
+    sql = f"""
+        SELECT
+            descripcion, familia, subfamilia, TRIM(proveedor) AS proveedor,
+            exceso_STK AS exceso_stock, STK_TOTAL AS stock_total,
+            dias_cobertura,
+            ROUND(precio_actual,2) AS precio_venta,
+            ROUND(costo_unit,2) AS costo,
+            ROUND((precio_actual-costo_unit)/NULLIF(costo_unit,0)*100,1) AS margen_pct,
+            cant_total AS ventas_90d
+        FROM {T_ALERT}
+        {where}
+        ORDER BY exceso_STK DESC
+        LIMIT {top_n}
+    """
+    df, err = ejecutar_sql(sql)
+    if err:
+        print(f"   [template oferta] Error: {err}")
+        return None
+    return df if not df.empty else None
+
 # ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
@@ -674,6 +717,17 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     Retorna DataFrame o None si no hay template aplicable.
     """
     p_lower_temprano = ctx.texto_libre.lower()
+
+    # OFERTA RÁPIDA — no requiere categoría, funciona antes del corte por falta de categoría
+    pide_oferta_temprano = any(x in p_lower_temprano for x in [
+        "oferta", "ofertas", "liquidar", "liquidacion", "liquidación",
+        "descuento", "descuentos", "poner en oferta", "que podemos poner de oferta",
+        "qué podemos poner de oferta", "que podemos colocar de oferta"])
+    if pide_oferta_temprano:
+        print(f"   [router] → tpl_candidatos_oferta (early)")
+        df = tpl_candidatos_oferta(ctx)
+        if df is not None:
+            return df
 
     # TENDENCIA SEMANAL — no requiere categoría/marca, solo sucursal opcional
     pide_tendencia = any(x in p_lower_temprano for x in [
@@ -704,6 +758,18 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     print(f"   [template] cat={ctx.categoria_key!r} marcas={ctx.marcas} "
           f"precio={ctx.pide_precio} comparar={pide_comparar} "
           f"ranking={ctx.pide_ranking} stock={ctx.pide_stock}")
+
+    # OFERTA — exceso stock + margen favorable
+    pide_oferta = any(x in p_lower for x in [
+        "oferta", "ofertas", "descuento", "descuentos", "liquidar",
+        "liquidacion", "liquidación", "promoci", "precio especial",
+        "poner en oferta", "que podemos ofrecer", "qué podemos ofrecer",
+        "que conviene ofrecer", "qué conviene ofrecer"])
+    if pide_oferta:
+        print(f"   [router] → tpl_candidatos_oferta")
+        df = tpl_candidatos_oferta(ctx)
+        if df is not None:
+            return df
 
     # -2d. IMPACTO APERTURA SABIN (canibalización vs mercado nuevo)
     pide_sabin_impacto = any(x in p_lower for x in [
