@@ -144,6 +144,18 @@ def enriquecer(pregunta: str) -> Contexto:
         factor = UNIDADES_PESO.get(unidad, 1)
         ctx.rango_max_g = int(valor * factor)
 
+    # ── 4a. MARCAS QUE SON PROVEEDORES ─────────────────────────
+    # Si la pregunta pide "comprar/pedir a X" y X es una marca conocida,
+    # tratarla como proveedor (no como filtro de producto)
+    _pide_compra = any(x in p for x in [
+        "comprar", "comprarle", "pedir", "pedirle", "reponer",
+        "cuanto tengo que", "cuanto le tengo", "cuánto le tengo",
+        "proveedor", "orden de compra", "oc a"])
+    if _pide_compra and ctx.marcas and not ctx.proveedor_nombre:
+        # Promover la primera marca detectada a proveedor_nombre
+        ctx.proveedor_nombre = ctx.marcas[0]
+        ctx.marcas = []  # limpiar marcas para que no filtre por producto
+
     # ── 4b. PROVEEDOR MENCIONADO ──────────────────────────────
     PROVEEDORES_CONOCIDOS = [
         "tremblay",
