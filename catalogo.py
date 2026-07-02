@@ -286,12 +286,17 @@ CATEGORIAS = {
                                  "caloventor","ventilador","termotanque"],
                     "marcas":["philco","carrier","BGH","drean","orbis"]},
     # ── MASCOTAS ───────────────────────────────────────────────
-    "mascotas":    {"familia":"Veterinaria","subfamilia":"Alimentos para mascot",
+    "mascotas":    {"familia":None,"subfamilia":"Alimentos para mascot",
                     "sinonimos":["mascota","mascotas","perro","perros","gato","gatos",
                                  "alimento para mascota","alimento para perro",
-                                 "alimento para gato","veterinaria"],
+                                 "alimento para gato","veterinaria","balanceado",
+                                 "alimento balanceado","comida para perro",
+                                 "comida para gato","alimentos para mascotas",
+                                 "accesorios para mascotas"],
                     "marcas":["pedigree","whiskas","purina","dog chow","cat chow",
-                               "royal canin","eukanuba","pro plan"]},
+                               "royal canin","eukanuba","pro plan","smarty",
+                               "capitan","farfan","supereco","montanes",
+                               "mr pet","4 huellas","sabrositos"]},
 }
 
 # ─── ÍNDICES INVERTIDOS ───────────────────────────────────────
