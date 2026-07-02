@@ -240,6 +240,11 @@ CATEGORIAS = {
                                  "pinesol","limpiador","fabuloso"],
                     "marcas":["pino","lysol","fabuloso","magistral","procenex"]},
     # ── TOCADOR ────────────────────────────────────────────────
+    "tocador":     {"familia":"Tocador y cosmética","subfamilia":None,
+                    "sinonimos":["tocador","tocador y cosmetica","tocador y cosmética",
+                                 "cosmetica","cosmética","higiene personal","cuidado personal",
+                                 "perfumeria","perfumería"],
+                    "marcas":[],"medidas":{}},
     "shampoo":     {"familia":"Tocador y cosmética","subfamilia":"Shampoo y Acondicionador",
                     "sinonimos":["shampoo","champú","champu","acondicionador","enjuague"],
                     "marcas":["sedal","head","pantene","dove","elseve","tresemme"]},

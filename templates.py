@@ -907,8 +907,33 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
         if df is not None:
             return df
 
+    # PÉRDIDA POR QUIEBRE — "perdiendo plata", "cuánto perdemos"
+    pide_perdida_early = any(x in p_lower_temprano for x in [
+        "cuanto perdi", "cuánto perdí", "cuanto se perdio", "cuánto se perdió",
+        "valor perdido", "perdida por quiebre", "pérdida por quiebre",
+        "dinero perdido", "ventas perdidas", "cuanto dinero perdi",
+        "perdiendo plata", "perdiendo dinero", "perdemos plata",
+        "perdemos dinero", "cuanto perdemos", "cuánto perdemos"])
+    if pide_perdida_early:
+        print(f"   [router] → tpl_valor_perdido_quiebre (early)")
+        df = tpl_valor_perdido_quiebre(ctx)
+        if df is not None:
+            return df
+
+    # PRECIO BAJO COSTO — "vendemos por debajo del costo"
+    pide_bajo_costo_early = any(x in p_lower_temprano for x in [
+        "bajo costo", "bajo el costo", "debajo del costo", "por debajo del costo",
+        "vendiendo a perdida", "vendiendo a pérdida", "costo de reposicion",
+        "costo de reposición", "menor al costo", "vendemos bajo",
+        "vendemos por debajo", "precio menor al costo"])
+    if pide_bajo_costo_early:
+        print(f"   [router] → tpl_precio_bajo_costo (early)")
+        df = tpl_precio_bajo_costo(ctx)
+        if df is not None:
+            return df
+
     # Necesita al menos categoría o marcas
-    if not ctx.categoria_key and not ctx.marcas and not ctx.rango_min_cc:
+    if not ctx.categoria_key and not ctx.marcas and not ctx.rango_min_cc and not ctx.proveedor_nombre:
         return None
 
     p_lower = ctx.texto_libre.lower()
