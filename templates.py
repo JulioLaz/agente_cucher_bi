@@ -899,6 +899,28 @@ def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     """
     p_lower_temprano = ctx.texto_libre.lower()
 
+    # ── PRIORIDAD MÁXIMA: BAJO COSTO — antes de cualquier detección de proveedor
+    pide_bajo_costo_max = any(x in p_lower_temprano for x in [
+        "bajo costo", "bajo el costo", "debajo del costo", "por debajo del costo",
+        "vendiendo a perdida", "vendiendo a pérdida", "vendemos por debajo",
+        "precio menor al costo", "margen negativo", "vendiendo bajo"])
+    if pide_bajo_costo_max:
+        print(f"   [router] → tpl_precio_bajo_costo (max priority)")
+        df = tpl_precio_bajo_costo(ctx)
+        if df is not None:
+            return df
+
+    # ── PRIORIDAD MÁXIMA: PÉRDIDA POR QUIEBRE — antes de cualquier detección de proveedor
+    pide_perdida_max = any(x in p_lower_temprano for x in [
+        "perdiendo plata", "perdiendo dinero", "perdemos plata",
+        "cuánto perdimos", "cuanto perdimos", "valor perdido",
+        "perdida por quiebre", "pérdida por quiebre"])
+    if pide_perdida_max:
+        print(f"   [router] → tpl_valor_perdido_quiebre (max priority)")
+        df = tpl_valor_perdido_quiebre(ctx)
+        if df is not None:
+            return df
+
     # VENTAS POR SUCURSAL — "qué sucursal vendió más X"
     pide_por_sucursal = any(x in p_lower_temprano for x in [
         "que sucursal", "qué sucursal", "por sucursal",
