@@ -329,6 +329,105 @@ with st.sidebar:
         )
 
 
+# ── CONFIRMADOR EN SIDEBAR ── siempre visible sin scroll
+if st.session_state.get("interpretacion_pendiente"):
+    with st.sidebar:
+        interp_sb     = st.session_state.interpretacion_pendiente
+        pregunta_sb   = st.session_state.pregunta_pendiente
+        puede_sb      = interp_sb.get("puede_responder", True)
+        reformul_sb   = interp_sb.get("reformulacion", "")
+        filtros_sb    = interp_sb.get("filtros_detectados", {})
+        tablas_sb     = interp_sb.get("tablas_necesarias", [])
+        limitacion_sb = interp_sb.get("limitacion", "")
+
+        st.markdown("---")
+        if puede_sb:
+            filtros_str_sb = " · ".join(
+                f"**{k}:** {v}" for k, v in filtros_sb.items() if v
+            )
+            tablas_str_sb = ", ".join(f"`{t}`" for t in tablas_sb) if tablas_sb else ""
+
+            st.markdown(
+                '<div style="background:#e8f4fd;border:2px solid #1a2744;'
+                'border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
+                '<div style="font-size:0.82rem;color:#1a2744;font-weight:700;'
+                'margin-bottom:6px;">🤖 Confirmá antes de ejecutar</div>'
+                f'<div style="font-size:0.82rem;color:#1a1a2e;margin-bottom:6px;">'
+                f'{reformul_sb}</div>'
+                + (f'<div style="font-size:0.75rem;color:#4b5563;">🔍 {filtros_str_sb}</div>'
+                   if filtros_str_sb else "")
+                + (f'<div style="font-size:0.72rem;color:#6b7280;">📋 {tablas_str_sb}</div>'
+                   if tablas_str_sb else "")
+                + '</div>',
+                unsafe_allow_html=True
+            )
+
+            if st.button("✅ Sí, ejecutar", use_container_width=True,
+                         key="btn_confirmar_sb", type="primary"):
+                with st.spinner("🤖 Consultando..."):
+                    t0 = time.time()
+                    try:
+                        respuesta, df_r, modo = procesar(
+                            pregunta_sb, st.session_state.historial)
+                    except Exception as e:
+                        respuesta, df_r, modo = f"❌ Error: {e}", None, "error"
+                    t_total = time.time() - t0
+
+                iconos = {"template": "⚡", "sql_libre": "🔧",
+                          "sql_retry": "🔄", "error_sql": "❌", "sql_vacio": "🔧"}
+                icono = iconos.get(modo, "🔧")
+                respuesta_completa = (
+                    f'<span class="skill-badge">{icono} {modo}</span>'
+                    f'<span class="time-badge">⏱ {t_total:.1f}s</span>\n\n'
+                    f'{respuesta}'
+                )
+                df_key = f"df_{len(st.session_state.messages)}"
+                if df_r is not None and not df_r.empty:
+                    if "dfs_guardados" not in st.session_state:
+                        st.session_state["dfs_guardados"] = {}
+                    st.session_state["dfs_guardados"][df_key] = df_r
+                st.session_state.messages.append({
+                    "role": "assistant", "content": respuesta_completa,
+                    "tiene_grafico": df_r is not None and not df_r.empty,
+                    "df_key": df_key if df_r is not None and not df_r.empty else None,
+                    "pregunta": pregunta_sb
+                })
+                st.session_state.historial.append(
+                    {"role": "user", "content": pregunta_sb})
+                st.session_state.historial.append(
+                    {"role": "assistant", "content": respuesta})
+                st.session_state.ultimo_df   = df_r
+                st.session_state.ultimo_modo = modo
+                st.session_state.interpretacion_pendiente = None
+                st.session_state.pregunta_pendiente = ""
+                guardar_historial(pregunta_sb, respuesta, modo, t_total)
+                enviar_telegram(pregunta_sb, respuesta, modo, t_total,
+                                usuario=st.session_state.get("usuario_actual", ""))
+                st.rerun()
+
+            if st.button("✏️ Corregir pregunta", use_container_width=True,
+                         key="btn_corregir_sb"):
+                st.session_state.interpretacion_pendiente = None
+                st.session_state.pregunta_pendiente = ""
+                st.rerun()
+
+        else:
+            st.markdown(
+                '<div style="background:#fef2f2;border:2px solid #dc2626;'
+                'border-radius:10px;padding:12px 14px;">'
+                '<div style="font-size:0.82rem;color:#dc2626;font-weight:700;'
+                f'margin-bottom:6px;">⛔ Fuera de mi alcance</div>'
+                f'<div style="font-size:0.80rem;color:#1a1a2e;">{limitacion_sb}</div>'
+                '</div>',
+                unsafe_allow_html=True
+            )
+            if st.button("✏️ Reformular", use_container_width=True,
+                         key="btn_reforma_sb"):
+                st.session_state.interpretacion_pendiente = None
+                st.session_state.pregunta_pendiente = ""
+                st.rerun()
+
+
 # ─── LAYOUT: CHAT | PANEL DERECHO ────────────────────────────
 col_chat, col_panel = st.columns([3, 1.1], gap="medium")
 
