@@ -614,8 +614,8 @@ with col_chat:
 
     st.markdown("---")
 
-    # ── PANEL DE INTERPRETACIÓN/CONFIRMACIÓN ─────────────────
-    if st.session_state.interpretacion_pendiente:
+    # ── PANEL DE INTERPRETACIÓN/CONFIRMACIÓN → movido al sidebar ─
+    if False and st.session_state.interpretacion_pendiente:
         interp       = st.session_state.interpretacion_pendiente
         pregunta_pend = st.session_state.pregunta_pendiente
         puede        = interp.get("puede_responder", True)
