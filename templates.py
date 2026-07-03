@@ -852,37 +852,69 @@ def tpl_reposicion_proveedor(ctx: Contexto) -> pd.DataFrame | None:
 
 def tpl_ranking_familias_margen(ctx: Contexto) -> pd.DataFrame | None:
     """
-    Ranking de familias por margen real usando margen_porcentual de tickets_all.
-    Responde: "cual es la familia con mejor margen", "que familia deja mas ganancia".
+    Ranking de familias por margen real + top articulos de la familia ganadora.
+    Responde: "cual es la familia con mejor margen y cuales son sus articulos top".
+    Usa margen_porcentual ya calculado en tickets_all (no lo calcula el LLM).
     """
-    filtros = ["LOWER(sucursal) IN (\'hiper\',\'corrientes\',\'sabin\',\'formosa\')"]
-
+    # Filtro de periodo
     if ctx.fecha_desde:
-        filtros.append(
-            f"CAST(fecha_comprobante AS DATE) BETWEEN \'{ctx.fecha_desde}\' AND \'{ctx.fecha_hasta}\'"
+        filtro_fecha = (
+            f"AND CAST(fecha_comprobante AS DATE)"
+            f" BETWEEN \'{ctx.fecha_desde}\' AND \'{ctx.fecha_hasta}\'"
         )
     else:
-        # Por defecto: mes mas reciente con datos
-        filtros.append(
-            "(SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM " + T_TICKETS + ") - INTERVAL 30 DAY"
-            " <= CAST(fecha_comprobante AS DATE)"
+        filtro_fecha = (
+            "AND CAST(fecha_comprobante AS DATE) >= "
+            f"(SELECT MAX(CAST(fecha_comprobante AS DATE)) FROM {T_TICKETS})"
+            " - INTERVAL 30 DAY"
         )
 
-    where = "WHERE " + " AND ".join(filtros)
-
     sql = f"""
-        SELECT familia,
-               ROUND(AVG(margen_porcentual)*100, 1)    AS margen_promedio_pct,
-               ROUND(SUM(precio_total)/1e6, 1)         AS ventas_m,
-               ROUND(SUM(precio_total-costo_total)/1e6,1) AS utilidad_m,
-               ROUND(SUM(cantidad_total),0)            AS unidades,
-               COUNT(DISTINCT idarticulo)              AS articulos
-        FROM {T_TICKETS}
-        {where}
-        GROUP BY familia
-        HAVING SUM(precio_total) > 50000000
-        ORDER BY margen_promedio_pct DESC
-        LIMIT 10
+        WITH ranking AS (
+            SELECT familia,
+                   ROUND(AVG(margen_porcentual)*100, 1)       AS margen_prom_pct,
+                   ROUND(SUM(precio_total)/1e6, 1)            AS ventas_m,
+                   ROUND(SUM(precio_total-costo_total)/1e6,1) AS utilidad_m,
+                   COUNT(DISTINCT idarticulo)                  AS articulos,
+                   ROW_NUMBER() OVER (ORDER BY AVG(margen_porcentual) DESC) AS rn
+            FROM {T_TICKETS}
+            WHERE LOWER(sucursal) IN (\'hiper\',\'corrientes\',\'sabin\',\'formosa\')
+              {filtro_fecha}
+            GROUP BY familia
+            HAVING SUM(precio_total) > 50000000
+        ),
+        top_articulos AS (
+            SELECT t.descripcion, t.familia, t.subfamilia,
+                   ROUND(AVG(t.margen_porcentual)*100,1) AS margen_pct,
+                   ROUND(SUM(t.precio_total)/1e6,1)      AS ventas_m,
+                   ROUND(SUM(t.cantidad_total),0)         AS unidades,
+                   'articulo_top' AS tipo
+            FROM {T_TICKETS} t
+            JOIN ranking r ON t.familia = r.familia AND r.rn = 1
+            WHERE LOWER(t.sucursal) IN (\'hiper\',\'corrientes\',\'sabin\',\'formosa\')
+              {filtro_fecha}
+              AND t.descripcion IS NOT NULL
+            GROUP BY t.descripcion, t.familia, t.subfamilia
+            HAVING SUM(t.precio_total) > 500000
+            ORDER BY SUM(t.precio_total) DESC
+            LIMIT 8
+        )
+        SELECT familia, 'FAMILIA GANADORA' AS tipo,
+               CAST(margen_prom_pct AS VARCHAR) AS margen_pct,
+               CAST(ventas_m AS VARCHAR) AS ventas_m,
+               CAST(utilidad_m AS VARCHAR) AS utilidad_m,
+               CAST(articulos AS VARCHAR) AS detalle,
+               NULL AS subfamilia, NULL AS unidades
+        FROM ranking WHERE rn = 1
+        UNION ALL
+        SELECT familia, tipo,
+               CAST(margen_pct AS VARCHAR),
+               CAST(ventas_m AS VARCHAR),
+               NULL,
+               descripcion,
+               subfamilia,
+               CAST(unidades AS VARCHAR)
+        FROM top_articulos
     """
     df, err = ejecutar_sql(sql)
     if err:
@@ -890,7 +922,6 @@ def tpl_ranking_familias_margen(ctx: Contexto) -> pd.DataFrame | None:
         return None
     return df if not df.empty else None
 
-# ─── ROUTER DE TEMPLATES ──────────────────────────────────────
 
 def resolver_con_template(ctx: Contexto) -> Optional[pd.DataFrame]:
     """
