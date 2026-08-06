@@ -111,6 +111,12 @@ REGLA 7 — ALIAS DE COLUMNAS (CRÍTICO, evita que el análisis confunda unidade
   NUNCA nombres una suma de cantidad_total como "ventas_X" — el análisis posterior asume que
   cualquier columna con "ventas" en el nombre es dinero en pesos y la formatea con $.  
 
+  REGLA 8 — GROUP BY EN RANKINGS DE ARTÍCULOS:
+  Para "más vendido" / "top artículos", agrupar SIEMPRE solo por descripcion
+  (nunca sumar familia/subfamilia al GROUP BY — puede fragmentar el total real
+  si el mismo artículo tiene esos campos inconsistentes entre registros).
+  Si necesitás mostrar familia/subfamilia, usá ANY_VALUE(familia), ANY_VALUE(subfamilia).
+  
 === EJEMPLOS DE QUERIES CORRECTAS ===
 
 -- Valor perdido por quiebres de stock (¿cuánto perdí?):
