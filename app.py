@@ -261,9 +261,7 @@ with st.sidebar:
         st.session_state["autenticado"]    = False
         st.session_state["usuario_actual"] = ""
         st.rerun()
-    st.markdown("---")
     st.markdown("**📖 Catálogo — solo referencia**")
-    st.caption("Usá estos valores para formular mejor tus preguntas")
 
     try:
         familias_lst = cargar_familias()
@@ -288,30 +286,6 @@ with st.sidebar:
     except Exception:
         st.selectbox("Proveedor", ["Todos"])
 
-    st.markdown("---")
-
-    with st.expander("ℹ️ ¿Para qué sirvo?", expanded=False):
-        st.markdown("""
-| | Capacidad |
-|---|---|
-| 📊 | Ventas por sucursal, artículo, familia, período |
-| 🏆 | Top artículos más vendidos y comparaciones de marcas |
-| 📈 | Tendencia diaria y mensual |
-| 📦 | Stock actual por sucursal |
-| 🚨 | Alertas de reabastecimiento y quiebre |
-| 🌡️ | Artículos en su mejor momento estacional |
-| 💰 | Último precio de compra OC |
-| 📉 | Margen real vs costo de compra |
-| 🏭 | Ranking y comparación de proveedores |
-
-**💡 Tips:**
-- Mencioná sucursal, marca, medida o período en la pregunta
-- *"Cervezas de más de 900cc más vendidas en Hiper"*
-- *"Precios de compra de yerba 500g"*
-- *"Comparar Quilmes vs Schneider en junio"*
-""")
-
-    st.markdown("---")
     if st.button("🗑️ Limpiar chat", width="stretch"):
         for k, v in KEYS_DEFAULT.items():
             st.session_state[k] = v
@@ -340,7 +314,7 @@ if st.session_state.get("interpretacion_pendiente"):
         tablas_sb     = interp_sb.get("tablas_necesarias", [])
         limitacion_sb = interp_sb.get("limitacion", "")
 
-        st.markdown("---")
+        # st.markdown("---")
         if puede_sb:
             filtros_str_sb = " · ".join(
                 f"**{k}:** {v}" for k, v in filtros_sb.items() if v
@@ -348,9 +322,9 @@ if st.session_state.get("interpretacion_pendiente"):
             tablas_str_sb = ", ".join(f"`{t}`" for t in tablas_sb) if tablas_sb else ""
 
             st.markdown(
-                '<div style="background:#e8f4fd;border:2px solid #1a2744;'
+                '<div style="background:#2E7802;border:2px solid #1a2744;'
                 'border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
-                '<div style="font-size:0.82rem;color:#1a2744;font-weight:700;'
+                '<div style="font-size:0.82rem;color:#000000;font-weight:700;'
                 'margin-bottom:6px;">🤖 Confirmá antes de ejecutar</div>'
                 f'<div style="font-size:0.82rem;color:#1a1a2e;margin-bottom:6px;">'
                 f'{reformul_sb}</div>'
@@ -362,7 +336,7 @@ if st.session_state.get("interpretacion_pendiente"):
                 unsafe_allow_html=True
             )
 
-            if st.button("✅ Sí, ejecutar", use_container_width=True,
+            if st.button("✅ Sí, ejecutar", width='stretch',
                          key="btn_confirmar_sb", type="primary"):
                 with st.spinner("🤖 Consultando..."):
                     t0 = time.time()
@@ -405,7 +379,7 @@ if st.session_state.get("interpretacion_pendiente"):
                                 usuario=st.session_state.get("usuario_actual", ""))
                 st.rerun()
 
-            if st.button("✏️ Corregir pregunta", use_container_width=True,
+            if st.button("✏️ Corregir pregunta", width='stretch',
                          key="btn_corregir_sb"):
                 st.session_state.interpretacion_pendiente = None
                 st.session_state.pregunta_pendiente = ""
@@ -421,7 +395,7 @@ if st.session_state.get("interpretacion_pendiente"):
                 '</div>',
                 unsafe_allow_html=True
             )
-            if st.button("✏️ Reformular", use_container_width=True,
+            if st.button("✏️ Reformular", width='stretch',
                          key="btn_reforma_sb"):
                 st.session_state.interpretacion_pendiente = None
                 st.session_state.pregunta_pendiente = ""
@@ -540,7 +514,7 @@ with col_chat:
                     )
                     label_btn = f"{emoji} {val}" + (" ✓" if activo else "")
                     if st.button(label_btn, key=f"btn_alerta_{key}",
-                                 use_container_width=True,
+                                 width='stretch',
                                  type="primary" if activo else "secondary"):
                         st.session_state["alerta_activa"] = None if activo else key
                         st.rerun()
@@ -560,7 +534,7 @@ with col_chat:
                     f'</div>', unsafe_allow_html=True)
 
                 if not df_detalle.empty:
-                    st.dataframe(df_detalle, use_container_width=True, height=320)
+                    st.dataframe(df_detalle, width='stretch', height=320)
 
                     buffer = generar_excel_detalle(df_detalle, lbl_activa)
 
@@ -571,11 +545,11 @@ with col_chat:
                             data=buffer,
                             file_name=f"cucher_{activa}_{date.today()}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
+                            width='stretch',
                             key=f"dl_{activa}"
                         )
                     with col_close:
-                        if st.button("✖️ Cerrar detalle", use_container_width=True,
+                        if st.button("✖️ Cerrar detalle", width='stretch',
                                      key="btn_cerrar_alerta"):
                             st.session_state["alerta_activa"] = None
                             st.rerun()
@@ -619,7 +593,7 @@ with col_chat:
                     activa_tend = st.session_state["tendencia_activa"] == (suc_sel_tend, tipo)
                     label_tend = f"{emoji} {cant} ({pct}%)" + (" ✓" if activa_tend else "")
                     if st.button(label_tend, key=f"btn_tend_{tipo}",
-                                 use_container_width=True,
+                                 width='stretch',
                                  type="primary" if activa_tend else "secondary"):
                         st.session_state["tendencia_activa"] = (
                             None if activa_tend else (suc_sel_tend, tipo)
@@ -666,7 +640,7 @@ with col_chat:
                         df_mostrar_tend = df_detalle_tend
                         st.caption("🔝 Ordenado por unidades vendidas en el período.")
 
-                    st.dataframe(df_mostrar_tend, use_container_width=True, height=320)
+                    st.dataframe(df_mostrar_tend, width='stretch', height=320)
 
                     buffer_tend = generar_excel_detalle(
                         df_mostrar_tend, f"Tendencia {tipo_activo} {suc_sel_tend}"
@@ -678,11 +652,11 @@ with col_chat:
                             data=buffer_tend,
                             file_name=f"cucher_tendencia_{tipo_activo}_{suc_sel_tend}_{date.today()}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
+                            width='stretch',
                             key=f"dl_tend_{tipo_activo}"
                         )
                     with col_close_t:
-                        if st.button("✖️ Cerrar detalle", use_container_width=True,
+                        if st.button("✖️ Cerrar detalle", width='stretch',
                                      key="btn_cerrar_tendencia"):
                             st.session_state["tendencia_activa"] = None
                             st.rerun()
@@ -894,7 +868,7 @@ with col_panel:
                 font=dict(color="#1a1a2e", size=9)
             )
             st.plotly_chart(fig, key="panel_suc",
-                            use_container_width=True,
+                            width='stretch',
                             config={"displayModeBar":False})
 
     st.markdown("---")
@@ -913,7 +887,7 @@ with col_panel:
                 font=dict(color="#1a1a2e", size=9)
             )
             st.plotly_chart(fig, key="panel_util",
-                            use_container_width=True,
+                            width='stretch',
                             config={"displayModeBar":False})
 
     st.markdown("---")
@@ -932,7 +906,7 @@ with col_panel:
                 font=dict(color="#1a1a2e", size=9)
             )
             st.plotly_chart(fig, key="panel_mens",
-                            use_container_width=True,
+                            width='stretch',
                             config={"displayModeBar":False})
 
 
