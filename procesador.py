@@ -5,6 +5,8 @@ procesador.py — Orquesta el flujo completo del agente:
   3. Si falla → LLM genera SQL
   4. DuckDB ejecuta → retry si hay error
   5. LLM analiza resultado
+v1.1 — REGLA 7: alias de columnas obligatorio (cantidad vs ventas) para evitar
+       que el análisis confunda unidades vendidas con montos en pesos.
 """
 import json
 import re
@@ -102,6 +104,12 @@ REGLA 5 — MARGEN
 
 REGLA 6 — SUCURSALES VENTA PÚBLICA
   IN ('hiper','corrientes','sabin','formosa')
+
+REGLA 7 — ALIAS DE COLUMNAS (CRÍTICO, evita que el análisis confunda unidades con dinero)
+  SUM(cantidad_total) → alias SIEMPRE con "cantidad" o "unidades" (ej: cantidad_2026, unidades_vendidas)
+  SUM(precio_total)   → alias SIEMPRE con "ventas" o "ingresos" (ej: ventas_2026, ingresos_total)
+  NUNCA nombres una suma de cantidad_total como "ventas_X" — el análisis posterior asume que
+  cualquier columna con "ventas" en el nombre es dinero en pesos y la formatea con $.  
 
 === EJEMPLOS DE QUERIES CORRECTAS ===
 
