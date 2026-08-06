@@ -118,7 +118,7 @@ streamlit run app.py
 **Julio Alberto Lazarte**
 Data Scientist · BI Lead
 
-🌐 [Portfolio](https://juliolaz.github.io) · 💼 [LinkedIn](https://www.linkedin.com/in/juliolazarte)
+🌐 [Portfolio](https://juliolaz.github.io) · 💼 [LinkedIn](https://www.linkedin.com/in/juliodatascientist/)
 
 © 2026 Julio Alberto Lazarte. Todos los derechos reservados.
 
@@ -131,5 +131,5 @@ streamlit run app.py
 
 """
     <a href="https://juliolaz.github.io" target="_blank">🌐 Portfolio</a>
-    <a href="https://www.linkedin.com/in/juliolazarte" target="_blank">💼 LinkedIn</a>
+    <a href="https://www.linkedin.com/in/juliodatascientist/" target="_blank">💼 LinkedIn</a>
 """
