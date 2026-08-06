@@ -133,3 +133,7 @@ streamlit run app.py
     <a href="https://juliolaz.github.io" target="_blank">🌐 Portfolio</a>
     <a href="https://www.linkedin.com/in/juliodatascientist/" target="_blank">💼 LinkedIn</a>
 """
+
+# VER APP: deploy streamlit
+
+https://agentecucherbi-j9hzzxdnw7oegxc8ixr2ce.streamlit.app/

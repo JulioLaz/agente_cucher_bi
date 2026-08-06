@@ -387,7 +387,7 @@ if st.session_state.get("interpretacion_pendiente"):
 
         else:
             st.markdown(
-                '<div style="background:#fef2f2;border:2px solid #dc2626;'
+                '<div style="background:#9B1010;border:2px solid #dc2626;'
                 'border-radius:10px;padding:12px 14px;">'
                 '<div style="font-size:0.82rem;color:#dc2626;font-weight:700;'
                 f'margin-bottom:6px;">⛔ Fuera de mi alcance</div>'
